@@ -17,7 +17,7 @@ var WSDL_FOLDER = './wsdl/poc';
 
 
 /**
- * Modification Thad
+ * Modification Thad + TESTING PULL
  */
 
 /*
