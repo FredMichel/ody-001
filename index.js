@@ -17,7 +17,7 @@ var WSDL_FOLDER = './wsdl/poc';
 
 
 /**
- * Modification FRED
+ * Modification Thad
  */
 
 /*
