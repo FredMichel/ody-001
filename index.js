@@ -23,25 +23,14 @@ var _ = require('lodash');
 var xml2js = require('xml2js');
 var winston = require('winston');
 var chokidar = require('chokidar');
+var dateFormat = require('dateformat');
 
 
 require('shelljs/global');
 
 var sourceTypeObj = require('./lib/publishing.headers');
 
-<<<<<<< HEAD
-var DATA_FOLDER = './data';
-var XML_FOLDER = './xml';
-var WSDL_FOLDER = './wsdl/poc';
-var dateNow = new Date();
-var formatedDate = dateFormat(dateNow, 'yyyymmddhhMMssl');
 
-
-/**
- * Modification Thad + TESTING PULL
- */
-=======
->>>>>>> 0d620092088f0b037dc7ccacafc43b3ff2e78197
 
 /*
 setInterval(function(){
@@ -72,15 +61,16 @@ fs.readFile(XML_FOLDER + '/create.xml', function (err, data) {
 // Added new feature for moving files
 
 
-watch.createMonitor(config.repositories.input, function (monitor) {
+watch.createMonitor(config.repositories.input, {
+    ignoreDirectoryPattern: /(error)|(processed)/
+}, function (monitor) {
     //monitor.files['/home/mikeal/.zshrc'] // Stat object for my zshrc.
     monitor.on("created", function (f, stat) {
-        console.log('New file detected !', f, stat);
         processFileCSV(f);
     });
     monitor.on("changed", function (f, curr, prev) {
         console.log('File changes detected !', f);
-        processFileCSV(f);
+        //processFileCSV(f);
     });
     monitor.on("removed", function (f, stat) {
         // Handle removed files
@@ -94,57 +84,64 @@ function processFileCSV(file) {
             return console.log(err);
         }
         parse(input, {
-            delimiter: ';'
+            delimiter: ';' //,
+                //quote: '~' // Commented TODO: tranform data and remove double quote from data
         }, function (err, output) {
             var args = {
                 record: []
             };
 
+
             var sourceType = "Unknown";
             var dataModel = {};
+            var formatedDate = dateFormat(new Date(), "yyyymmddHHMMssl");
+            var fileFolders = file.split('/');
+            var fileName = fileFolders[(fileFolders.length - 1)];
+
             output.forEach(function (line, i) {
                 if (i == 0) {
                     for (var id in sourceTypeObj) {
                         var obj = sourceTypeObj[id];
+
                         if (_.difference(line, obj.header).length == 0) {
                             sourceType = obj;
                             break;
                         }
                     }
                 }
-                if (i != 0 && sourceType != 'Unknown') {
+                if (i != 0 && sourceType != 'Unknown' && i < 2000) {
                     var record = {};
                     var dataModel = sourceType.mapping;
                     for (var k in dataModel) {
-                        record[k] = line[dataModel[k]];
+                        record[k] = '<![CDATA[' + line[dataModel[k]] + ']]>';
                     }
-                    console.log('record', record);
+                    //console.log('record', record);
                     args.record.push(record);
                     //MOVE TO SPECIFIC FOLDER (sourceType.path+'in')
                     // shell.mv('-n', file, sourceType.path + '/in'); //Move file to folder
-                    shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/in' + file + '_' + formatedDate);
+                    //mv('-n', file, config.repositories.input + '/' + sourceType.folder + '/in/' + fileName);
+                } else if (i > 2000) {
+                    return;
                 }
             });
-            console.log('sourcetype', sourceType);
+            //console.log('sourcetype', sourceType);
             if (sourceType != 'Unknown') {
-<<<<<<< HEAD
-                soap.createClient(WSDL_FOLDER + sourceType.url, function (err, client) {
-=======
+
                 soap.createClient(config.repositories.wsdl + sourceType.url, function (err, client) {
->>>>>>> 0d620092088f0b037dc7ccacafc43b3ff2e78197
-                    console.log('Pushing', args.record.length, 'records of ', sourceType.header, ' to ServiceNow');
+                    //console.log('Pushing', args.record.length, 'records of ', sourceType.header, ' to ServiceNow');
                     client.setSecurity(new soap.BasicAuthSecurity(config.servicenow.credentials.login, config.servicenow.credentials.password));
                     client.insertMultiple(args, function (err, result) {
+                        console.log(result)
                         if (err) {
                             console.log('ERROR', err);
                             //MOVE TO SPECIFIC FOLDER (sourceType.path+'error')
                             //shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/error');
-                            shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/error/' + file + '_' + formatedDate);
+                            mv('-n', file, config.repositories.data + '/' + sourceType.folder + '/error/' + fileName + '_' + formatedDate);
                         } else {
                             console.log(result);
                             //MOVE TO SPECIFIC FOLDER (sourceType.path+'processed')
                             //shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/processed'); //Move file to folder
-                            shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/unknow' + file + '_' + formatedDate);
+                            mv('-n', file, config.repositories.data + '/' + sourceType.folder + '/processed/' + fileName + '_' + formatedDate);
                         }
                     });
                 });
@@ -152,11 +149,8 @@ function processFileCSV(file) {
                 console.log('Unknown source type, no call to ServiceNow');
                 //MOVE TO Unknown
                 //shell.mv('-n', file, DATA_FOLDER + '/unknown'); //Move file to folder
+                mv('-n', file, config.repositories.data + '/unknown/' + fileName + '_' + formatedDate);
             }
         });
     });
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 0d620092088f0b037dc7ccacafc43b3ff2e78197
