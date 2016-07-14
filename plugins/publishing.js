@@ -21,7 +21,7 @@ var Plugin = {
     return true;
   },
   start : function (){
-    fs.readFile(file, 'utf8', function (err, input) {
+    fs.readFile(this.filename, 'utf8', function (err, input) {
       if (err) {
         return console.log(err);
       }
@@ -37,7 +37,7 @@ var Plugin = {
         var sourceType = "Unknown";
         var dataModel = {};
         var formatedDate = dateFormat(new Date(), "yyyymmddHHMMssl");
-        var fileFolders = file.split('/');
+        var fileFolders = this.filename.split('/');
         var fileName = fileFolders[(fileFolders.length - 1)];
 
         output.forEach(function (line, i) {
@@ -78,12 +78,12 @@ var Plugin = {
                 console.log('ERROR', err);
                 //MOVE TO SPECIFIC FOLDER (sourceType.path+'error')
                 //shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/error');
-                mv('-n', file, config.repositories.data + '/' + sourceType.folder + '/error/' + fileName + '_' + formatedDate);
+                mv('-n', this.filename, config.repositories.data + '/' + sourceType.folder + '/error/' + fileName + '_' + formatedDate);
               } else {
                 console.log(result);
                 //MOVE TO SPECIFIC FOLDER (sourceType.path+'processed')
                 //shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/processed'); //Move file to folder
-                mv('-n', file, config.repositories.data + '/' + sourceType.folder + '/processed/' + fileName + '_' + formatedDate);
+                mv('-n', this.filename, config.repositories.data + '/' + sourceType.folder + '/processed/' + fileName + '_' + formatedDate);
               }
             });
           });
@@ -91,7 +91,7 @@ var Plugin = {
           console.log('Unknown source type, no call to ServiceNow');
           //MOVE TO Unknown
           //shell.mv('-n', file, DATA_FOLDER + '/unknown'); //Move file to folder
-          mv('-n', file, config.repositories.data + '/unknown/' + fileName + '_' + formatedDate);
+          mv('-n', this.filename, config.repositories.data + '/unknown/' + fileName + '_' + formatedDate);
         }
       });
     });
