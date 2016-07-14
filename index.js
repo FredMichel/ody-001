@@ -14,6 +14,8 @@ var sourceTypeObj = require('./lib/publishing.headers');
 var DATA_FOLDER = './data';
 var XML_FOLDER = './xml';
 var WSDL_FOLDER = './wsdl/poc';
+var dateNow = new Date();
+var formatedDate = dateFormat(dateNow, 'yyyymmddhhMMssl');
 
 
 /**
@@ -101,11 +103,12 @@ function processFile(file) {
                     args.record.push(record);
                     //MOVE TO SPECIFIC FOLDER (sourceType.path+'in')
                     // shell.mv('-n', file, sourceType.path + '/in'); //Move file to folder
+                    shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/in' + file + '_' + formatedDate);
                 }
             });
             console.log('sourcetype', sourceType);
             if (sourceType != 'Unknown') {
-                soap.createClient('./wsdl/' + sourceType.url, function (err, client) {
+                soap.createClient(WSDL_FOLDER + sourceType.url, function (err, client) {
                     console.log('Pushing', args.record.length, 'records of ', sourceType.header, ' to ServiceNow');
                     client.setSecurity(new soap.BasicAuthSecurity('testuser', 'password'));
                     client.insertMultiple(args, function (err, result) {
@@ -113,10 +116,12 @@ function processFile(file) {
                             console.log('ERROR', err);
                             //MOVE TO SPECIFIC FOLDER (sourceType.path+'error')
                             //shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/error');
+                            shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/error/' + file + '_' + formatedDate);
                         } else {
                             console.log(result);
                             //MOVE TO SPECIFIC FOLDER (sourceType.path+'processed')
                             //shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/processed'); //Move file to folder
+                            shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/unknow' + file + '_' + formatedDate);
                         }
                     });
                 });
@@ -127,13 +132,4 @@ function processFile(file) {
             }
         });
     });
-}
-
-function getDataModel(sourceType) {
-    if (sourceType == personUrl) {
-        return {
-            u_email: 5,
-            u_id_person: 1
-        }
-    }
 }
