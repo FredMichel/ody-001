@@ -45,6 +45,10 @@ setInterval(function(){
 fs.readFile(XML_FOLDER + '/create.xml', function (err, data) {
     parser.parseString(data);
 });**/
+
+// Added new feature for moving files
+
+
 watch.createMonitor(DATA_FOLDER, function (monitor) {
     //monitor.files['/home/mikeal/.zshrc'] // Stat object for my zshrc.
     monitor.on("created", function (f, stat) {
@@ -66,7 +70,9 @@ function processFile(file) {
         if (err) {
             return console.log(err);
         }
-        parse(input, {delimiter: ';'}, function (err, output) {
+        parse(input, {
+            delimiter: ';'
+        }, function (err, output) {
             var args = {
                 record: []
             };
@@ -94,12 +100,12 @@ function processFile(file) {
                     console.log('record', record);
                     args.record.push(record);
                     //MOVE TO SPECIFIC FOLDER (sourceType.path+'in')
-                   // shell.mv('-n', file, sourceType.path + '/in'); //Move file to folder
+                    // shell.mv('-n', file, sourceType.path + '/in'); //Move file to folder
                 }
             });
-            console.log ('sourcetype',sourceType);
+            console.log('sourcetype', sourceType);
             if (sourceType != 'Unknown') {
-                soap.createClient('./wsdl/'+sourceType.url, function (err, client) {
+                soap.createClient('./wsdl/' + sourceType.url, function (err, client) {
                     console.log('Pushing', args.record.length, 'records of ', sourceType.header, ' to ServiceNow');
                     client.setSecurity(new soap.BasicAuthSecurity('testuser', 'password'));
                     client.insertMultiple(args, function (err, result) {
@@ -131,4 +137,3 @@ function getDataModel(sourceType) {
         }
     }
 }
-
