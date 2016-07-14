@@ -27,11 +27,6 @@ var chokidar = require('chokidar');
 var dateFormat = require('dateformat');
 
 
-require('shelljs/global');
-
-var sourceTypeObj = require('./lib/publishing.headers');
-
-
 
 // Added new feature for moving files
 
@@ -40,12 +35,12 @@ var plugins = [];
 
 // Initilisation plugins
 
-for (var i in config.capabilities){
-    plugins.push( require(config.repositories.plugins+config.capabilities[i]+'.js' ));
+for (var i in config.capabilities) {
+    plugins.push(require(config.repositories.plugins + config.capabilities[i] + '.js'));
 }
 
-for (var i in plugins){
-    console.log ('Plugin ' , plugins[i].getName(), 'loaded.');
+for (var i in plugins) {
+    console.log('Plugin ', plugins[i].getName(), 'loaded.');
 }
 
 
@@ -70,8 +65,7 @@ watch.createMonitor(config.repositories.input, {
 });
 
 
-function getPlugin(f){
+function getPlugin(f) {
     plugins[0].setFilename(f);
     return plugins[0];
 }
-
