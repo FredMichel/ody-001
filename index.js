@@ -1,16 +1,35 @@
 /**
- * Main file
+ * REST API Client
+ *
+ * Libraries used :
+ * ---------------
+ * config : Configuration files
+ * soap : Soap client
+ * fs : file system
+ * parse : CSV management
+ * chokidar : File monitoring (will replace parse)
+ * _ : Utilities array, object , ....
+ * xml2js : XML management
+ * winston : Log management
  */
+
+
+var config = require('./config/config.json');
 var soap = require('soap');
 var parse = require('csv-parse');
 var fs = require('fs');
 var watch = require('watch');
 var _ = require('lodash');
 var xml2js = require('xml2js');
+var winston = require('winston');
+var chokidar = require('chokidar');
+
+
 require('shelljs/global');
 
 var sourceTypeObj = require('./lib/publishing.headers');
 
+<<<<<<< HEAD
 var DATA_FOLDER = './data';
 var XML_FOLDER = './xml';
 var WSDL_FOLDER = './wsdl/poc';
@@ -21,6 +40,8 @@ var formatedDate = dateFormat(dateNow, 'yyyymmddhhMMssl');
 /**
  * Modification Thad + TESTING PULL
  */
+=======
+>>>>>>> 0d620092088f0b037dc7ccacafc43b3ff2e78197
 
 /*
 setInterval(function(){
@@ -51,15 +72,15 @@ fs.readFile(XML_FOLDER + '/create.xml', function (err, data) {
 // Added new feature for moving files
 
 
-watch.createMonitor(DATA_FOLDER, function (monitor) {
+watch.createMonitor(config.repositories.input, function (monitor) {
     //monitor.files['/home/mikeal/.zshrc'] // Stat object for my zshrc.
     monitor.on("created", function (f, stat) {
-        console.log('New file detected !', f);
-        processFile(f);
+        console.log('New file detected !', f, stat);
+        processFileCSV(f);
     });
     monitor.on("changed", function (f, curr, prev) {
         console.log('File changes detected !', f);
-        processFile(f);
+        processFileCSV(f);
     });
     monitor.on("removed", function (f, stat) {
         // Handle removed files
@@ -67,7 +88,7 @@ watch.createMonitor(DATA_FOLDER, function (monitor) {
     //monitor.stop(); // Stop watching
 });
 
-function processFile(file) {
+function processFileCSV(file) {
     fs.readFile(file, 'utf8', function (err, input) {
         if (err) {
             return console.log(err);
@@ -86,8 +107,6 @@ function processFile(file) {
                     for (var id in sourceTypeObj) {
                         var obj = sourceTypeObj[id];
                         if (_.difference(line, obj.header).length == 0) {
-                            // sourceType = personUrl;
-                            //dataModel = getDataModel(sourceType);
                             sourceType = obj;
                             break;
                         }
@@ -108,9 +127,13 @@ function processFile(file) {
             });
             console.log('sourcetype', sourceType);
             if (sourceType != 'Unknown') {
+<<<<<<< HEAD
                 soap.createClient(WSDL_FOLDER + sourceType.url, function (err, client) {
+=======
+                soap.createClient(config.repositories.wsdl + sourceType.url, function (err, client) {
+>>>>>>> 0d620092088f0b037dc7ccacafc43b3ff2e78197
                     console.log('Pushing', args.record.length, 'records of ', sourceType.header, ' to ServiceNow');
-                    client.setSecurity(new soap.BasicAuthSecurity('testuser', 'password'));
+                    client.setSecurity(new soap.BasicAuthSecurity(config.servicenow.credentials.login, config.servicenow.credentials.password));
                     client.insertMultiple(args, function (err, result) {
                         if (err) {
                             console.log('ERROR', err);
@@ -132,4 +155,8 @@ function processFile(file) {
             }
         });
     });
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 0d620092088f0b037dc7ccacafc43b3ff2e78197
