@@ -58,16 +58,32 @@ fs.readFile(XML_FOLDER + '/create.xml', function (err, data) {
 
 // Added new feature for moving files
 
+var plugins = [];
+
+
+// Initilisation plugins
+
+for (var i in config.capabilities){
+    plugins.push( require(config.repositories.plugins+config.capabilities[i]+'.js' ));
+}
+
+for (var i in plugins){
+    console.log ('PlugIn ' , plugins[i].getName(), 'loaded.');
+}
+
 
 watch.createMonitor(config.repositories.input, function (monitor) {
     //monitor.files['/home/mikeal/.zshrc'] // Stat object for my zshrc.
     monitor.on("created", function (f, stat) {
-        console.log('New file detected !', f, stat);
-        processFileCSV(f);
+        //console.log('New file detected !', f);
+        var processor = getPlugin(f);
+        processor.start();
+
+        //processFileCSV(f);
     });
     monitor.on("changed", function (f, curr, prev) {
         console.log('File changes detected !', f);
-        processFileCSV(f);
+        //processFileCSV(f);
     });
     monitor.on("removed", function (f, stat) {
         // Handle removed files
@@ -135,4 +151,9 @@ function processFileCSV(file) {
             }
         });
     });
+}
+
+function getPlugin(f){
+    plugins[0].setFilename(f)
+    return plugins[0];
 }
