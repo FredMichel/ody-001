@@ -16,6 +16,10 @@ var XML_FOLDER = './xml';
 var WSDL_FOLDER = './wsdl/poc';
 
 
+/**
+ * Modification FRED
+ */
+
 /*
 setInterval(function(){
 
