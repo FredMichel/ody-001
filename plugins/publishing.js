@@ -18,7 +18,10 @@ var sourceTypeObj = require('../lib/publishing.headers');
 
 var Plugin = {
     filename: '',
-
+    logger : null,
+    setLogger : function (logger){
+        this.logger = logger;
+    },
     getName: function () {
         return 'Publishing Integration'
     },
@@ -30,6 +33,7 @@ var Plugin = {
     },
     start: function () {
         var file = this.filename;
+        this.logger.info (this.getName(),' - Processing', this.getFilename());
         fs.readFile(file, 'utf8', function (err, input) {
             if (err) {
                 return logger.error(err);

@@ -1,5 +1,5 @@
 /**
- * REST API Client
+ * REST API Client + File Manipulator
  *
  * Libraries used :
  * ---------------
@@ -40,17 +40,17 @@ for (var i in config.capabilities) {
 }
 
 for (var i in plugins) {
-    console.log('Plugin ', plugins[i].getName(), 'loaded.');
+    winston.info('Plugin loaded successfully : ['+ plugins[i].getName()+ ']');
 }
 
 
 watch.createMonitor(config.repositories.input, function (monitor) {
     //monitor.files['/home/mikeal/.zshrc'] // Stat object for my zshrc.
     monitor.on("created", function (f, stat) {
-        //console.log('New file detected !', f);
         getPlugin(f, function (err, processor) {
             if (err) {
                 // No plugin matches
+                winston.error('Unknown format', f);
                 return;
             }
 
@@ -84,6 +84,7 @@ function getPlugin(f, callback) {
     }
     if (isValid) {
         plugins[i].setFilename(f);
+        plugins[i].setLogger (winston);
         callback(null, plugins[i]);
     } else {
         callback(true);
