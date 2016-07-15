@@ -44,14 +44,20 @@ for (var i in plugins) {
 }
 
 
-watch.createMonitor(config.repositories.input, {
-    ignoreDirectoryPattern: /(error)|(processed)/
-}, function (monitor) {
+watch.createMonitor(config.repositories.input, function (monitor) {
     //monitor.files['/home/mikeal/.zshrc'] // Stat object for my zshrc.
     monitor.on("created", function (f, stat) {
         //console.log('New file detected !', f);
-        var processor = getPlugin(f);
-        processor.start();
+        getPlugin(f, function (err, processor) {
+            if (err) {
+                // No plugin matches
+                return;
+            }
+
+            processor.start();
+
+        });
+
 
     });
     monitor.on("changed", function (f, curr, prev) {
@@ -65,7 +71,22 @@ watch.createMonitor(config.repositories.input, {
 });
 
 
-function getPlugin(f) {
-    plugins[0].setFilename(f);
-    return plugins[0];
+function getPlugin(f, callback) {
+    callback = callback || function () {};
+    var isValid = false;
+    var i = 0;
+
+    while (!isValid && (i < plugins.length)) {
+        isValid = plugins[i].isValid(f);
+        if (!isValid) {
+            i++;
+        }
+    }
+    if (isValid) {
+        plugins[i].setFilename(f);
+        callback(null, plugins[i]);
+    } else {
+        callback(true);
+    }
+
 }

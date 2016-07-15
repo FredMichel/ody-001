@@ -13,19 +13,9 @@ require('shelljs/global');
 
 var sourceTypeObj = require('../lib/publishing.headers');
 
-var logger = new(winston.Logger)({
-    transports: [
-      new(winston.transports.Console)(),
-      new(winston.transports.File)({
-            filename: config.log.path + 'log'
-        })
-    ],
-    level: config.log.level
-});
-
-
 var Plugin = {
     filename: '',
+
     getName: function () {
         return 'Publishing Integration'
     },
@@ -56,60 +46,71 @@ var Plugin = {
                 var fileFolders = file.split('/');
                 var fileName = fileFolders[(fileFolders.length - 1)];
 
-                output.forEach(function (line, i) {
-                    if (i == 0) {
-                        for (var id in sourceTypeObj) {
-                            var obj = sourceTypeObj[id];
+                try {
+                    output.forEach(function (line, i) {
+                        if (i == 0) {
+                            for (var id in sourceTypeObj) {
+                                var obj = sourceTypeObj[id];
 
-                            if (_.difference(line, obj.header).length == 0) {
-                                sourceType = obj;
-                                var inPath = config.repositories.data + '/' + sourceType.folder + '/in/' + fileName + '_' + formatedDate;
-                                mv('-n', file, inPath);
-                                file = inPath;
-                                break;
+                                if (_.difference(line, obj.header).length == 0) {
+                                    sourceType = obj;
+                                    var inFolder = config.repositories.data + sourceType.folder + '/in/';
+                                    var inPath = inFolder + fileName + '_' + formatedDate;
+                                    movingFileToFolder(file, inFolder, inPath);
+                                    file = inPath;
+                                    break;
+                                }
                             }
                         }
-                    }
-                    if (i != 0 && sourceType != 'Unknown' && i < 2000) {
-                        var record = {};
-                        var dataModel = sourceType.mapping;
-                        for (var k in dataModel) {
-                            record[k] = '<![CDATA[' + line[dataModel[k]] + ']]>';
-                        }
-                        //console.log('record', record);
-                        args.record.push(record);
-                        //MOVE TO SPECIFIC FOLDER (sourceType.path+'in')
-                        // shell.mv('-n', file, sourceType.path + '/in'); //Move file to folder
-                    }
-                });
-                //console.log('sourcetype', sourceType);
-                if (sourceType != 'Unknown') {
-
-                    soap.createClient(config.repositories.wsdl + sourceType.url, function (err, client) {
-                        //console.log('Pushing', args.record.length, 'records of ', sourceType.header, ' to ServiceNow');
-                        client.setSecurity(new soap.BasicAuthSecurity(config.servicenow.credentials.login, config.servicenow.credentials.password));
-                        client.insertMultiple(args, function (err, result) {
-                            console.log(result)
-                            if (err) {
-                                console.log('ERROR', err);
-                                //MOVE TO SPECIFIC FOLDER (sourceType.path+'error')
-                                //shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/error');
-                                var errorPath = config.repositories.data + '/' + sourceType.folder + '/error/';
-                                mv('-n', file, errorPath);
-                            } else {
-                                console.log(result);
-                                //MOVE TO SPECIFIC FOLDER (sourceType.path+'processed')
-                                //shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/processed'); //Move file to folder
-                                var processePath = config.repositories.data + '/' + sourceType.folder + '/processed/';
-                                mv('-n', file, processePath);
+                        if (i != 0 && sourceType != 'Unknown' && i < 2000) {
+                            var record = {};
+                            var dataModel = sourceType.mapping;
+                            for (var k in dataModel) {
+                                record[k] = '<![CDATA[' + line[dataModel[k]] + ']]>';
                             }
-                        });
+                            //console.log('record', record);
+                            args.record.push(record);
+                            //MOVE TO SPECIFIC FOLDER (sourceType.path+'in')
+                            // shell.mv('-n', file, sourceType.path + '/in'); //Move file to folder
+                        }
                     });
-                } else {
-                    console.log('Unknown source type, no call to ServiceNow');
+                    //console.log('sourcetype', sourceType);
+                    if (sourceType != 'Unknown') {
+
+                        soap.createClient(config.repositories.wsdl + sourceType.url, function (err, client) {
+                            winston.info('Pushing ' + args.record.length + ' records of ' + sourceType.header + ' to ServiceNow');
+                            client.setSecurity(new soap.BasicAuthSecurity(config.servicenow.credentials.login, config.servicenow.credentials.password));
+                            client.insertMultiple(args, function (err, result) {
+                                if (err) {
+                                    winston.error("An error has happende during the SOAP call to ServiceNow : " + err);
+                                    //MOVE TO SPECIFIC FOLDER (sourceType.path+'error')
+                                    //shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/error');
+                                    var errorPath = config.repositories.data + sourceType.folder + '/error/';
+                                    movingFileToFolder(file, errorPath);
+                                } else {
+                                    winston.info("This is the SOAP Response " + result.toString());
+                                    //MOVE TO SPECIFIC FOLDER (sourceType.path+'processed')
+                                    //shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/processed'); //Move file to folder
+                                    var processedPath = config.repositories.data + sourceType.folder + '/processed/';
+                                    movingFileToFolder(file, processedPath);
+                                }
+                            });
+                        });
+                    } else {
+                        winston.warn('Unknown source type, no call to ServiceNow');
+                        //MOVE TO Unknown
+                        //shell.mv('-n', file, DATA_FOLDER + '/unknown'); //Move file to folder
+                        var unknownFolder = config.repositories.data + 'unknown/';
+                        var unknownPath = unknownFolder + fileName + '_' + formatedDate;
+                        movingFileToFolder(file, unknownFolder, unknownPath);
+                    }
+                } catch (exception) {
+                    winston.warn('Unknown source type, no call to ServiceNow for file' + file);
                     //MOVE TO Unknown
                     //shell.mv('-n', file, DATA_FOLDER + '/unknown'); //Move file to folder
-                    mv('-n', file, config.repositories.data + '/unknown/' + fileName + '_' + formatedDate);
+                    var unknownFolder = config.repositories.data + 'unknown/';
+                    var unknownPath = unknownFolder + fileName + '_' + formatedDate;
+                    movingFileToFolder(file, unknownFolder, unknownPath);
                 }
             });
         });
@@ -118,5 +119,41 @@ var Plugin = {
         this.filename = f;
     }
 };
+
+/**
+ * This function tests if a folder exists.
+ * If not it will be created as well as the intermediate folder if necessary
+ * 
+ * Parameters:
+ * - folder: the folder to check existence
+ * 
+ * Return:
+ * - void
+ */
+function testFolderExist(folder) {
+    if (!test('-d', folder)) {
+        mkdir('-p', folder);
+        winston.info('Creation of folder ' + folder);
+    }
+}
+
+/**
+ * This function is moving a file from a folder to an other
+ * 
+ * Parameters:
+ * - file: the file to move
+ * - folder: desination folder
+ * - dest: destintion forlder or file if a renaming is made
+ * 
+ * Return:
+ * - void
+ */
+function movingFileToFolder(file, folder, dest) {
+    var dest = dest || folder;
+
+    testFolderExist(folder);
+    mv('-n', file, dest);
+    winston.info("Moving file " + file + " to " + dest);
+}
 
 module.exports = Plugin;
