@@ -42,6 +42,7 @@ jspm_packages
 data/
 mapping/
 node_modules/
+logs/
 data.zip
 config
 IN/
