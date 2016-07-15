@@ -1,3 +1,6 @@
+/**
+ * Plugin for publishing
+ */
 var config = require('../config/config.json');
 var soap = require('soap');
 var parse = require('csv-parse');
