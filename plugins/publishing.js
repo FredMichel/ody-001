@@ -13,6 +13,17 @@ require('shelljs/global');
 
 var sourceTypeObj = require('../lib/publishing.headers');
 
+var logger = new(winston.Logger)({
+    transports: [
+      new(winston.transports.Console)(),
+      new(winston.transports.File)({
+            filename: config.log.path + 'log'
+        })
+    ],
+    level: config.log.level
+});
+
+
 var Plugin = {
     filename: '',
     getName: function () {
@@ -28,7 +39,7 @@ var Plugin = {
         var file = this.filename;
         fs.readFile(file, 'utf8', function (err, input) {
             if (err) {
-                return console.log(err);
+                return logger.error(err);
             }
             parse(input, {
                 delimiter: ';' //,
@@ -52,6 +63,9 @@ var Plugin = {
 
                             if (_.difference(line, obj.header).length == 0) {
                                 sourceType = obj;
+                                var inPath = config.repositories.data + '/' + sourceType.folder + '/in/' + fileName + '_' + formatedDate;
+                                mv('-n', file, inPath);
+                                file = inPath;
                                 break;
                             }
                         }
@@ -66,9 +80,6 @@ var Plugin = {
                         args.record.push(record);
                         //MOVE TO SPECIFIC FOLDER (sourceType.path+'in')
                         // shell.mv('-n', file, sourceType.path + '/in'); //Move file to folder
-                        //mv('-n', file, config.repositories.input + '/' + sourceType.folder + '/in/' + fileName);
-                    } else if (i > 2000) {
-                        return;
                     }
                 });
                 //console.log('sourcetype', sourceType);
@@ -83,12 +94,14 @@ var Plugin = {
                                 console.log('ERROR', err);
                                 //MOVE TO SPECIFIC FOLDER (sourceType.path+'error')
                                 //shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/error');
-                                mv('-n', file, config.repositories.data + '/' + sourceType.folder + '/error/' + fileName + '_' + formatedDate);
+                                var errorPath = config.repositories.data + '/' + sourceType.folder + '/error/';
+                                mv('-n', file, errorPath);
                             } else {
                                 console.log(result);
                                 //MOVE TO SPECIFIC FOLDER (sourceType.path+'processed')
                                 //shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/processed'); //Move file to folder
-                                mv('-n', file, config.repositories.data + '/' + sourceType.folder + '/processed/' + fileName + '_' + formatedDate);
+                                var processePath = config.repositories.data + '/' + sourceType.folder + '/processed/';
+                                mv('-n', file, processePath);
                             }
                         });
                     });
