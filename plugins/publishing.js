@@ -101,26 +101,37 @@ var Plugin = {
                     });
                     //console.log('sourcetype', sourceType);
                     if (sourceType != 'Unknown') {
+                        try{
+                            soap.createClient(config.repositories.wsdl + sourceType.url, function (err, client) {
 
-                        soap.createClient(config.repositories.wsdl + sourceType.url, function (err, client) {
-                            logger.info('Pushing ' + args.record.length + ' records of ' + sourceType.header + ' to ServiceNow');
-                            client.setSecurity(new soap.BasicAuthSecurity(config.servicenow.credentials.login, config.servicenow.credentials.password));
-                            client.insertMultiple(args, function (err, result) {
-                                if (err) {
-                                    logger.error("An error occured during the SOAP call to ServiceNow : " + err);
-                                    //MOVE TO SPECIFIC FOLDER (sourceType.path+'error')
-                                    //shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/error');
-                                    var errorPath = config.repositories.data + sourceType.folder + '/error/';
-                                    movingFileToFolder(file, errorPath);
-                                } else {
-                                    logger.info("This is the SOAP Response " + result.toString());
-                                    //MOVE TO SPECIFIC FOLDER (sourceType.path+'processed')
-                                    //shell.mv('-n', file, DATA_FOLDER + '/' + sourceType.folder + '/processed'); //Move file to folder
-                                    var processedPath = config.repositories.data + sourceType.folder + '/processed/';
-                                    movingFileToFolder(file, processedPath);
+                                try {
+                                    client.setSecurity(new soap.BasicAuthSecurity(config.servicenow.credentials.login, config.servicenow.credentials.password));
+                                    client.insertMultiple(args, function (err, result) {
+                                        if (err) {
+                                            logger.error("An error occured during the SOAP call to ServiceNow : " + err);
+                                            var errorPath = config.repositories.data + sourceType.folder + '/error/';
+                                            movingFileToFolder(file, errorPath);
+                                        } else {
+                                            logger.info("This is the SOAP Response " + JSON.stringify(result));
+                                            var processedPath = config.repositories.data + sourceType.folder + '/processed/';
+                                            movingFileToFolder(file, processedPath);
+                                        }
+                                    });
+                                    logger.info('Pushing ' + args.record.length + ' records of ' + sourceType.header + ' to ServiceNow');
+                                }catch(e){
+                                    console.log ('error');
+                                    logger.error('Error when connecting to Odyssey' + e);
+                                    var errorFolder = config.repositories.data + 'error/';
+                                    movingFileToFolder(file, errorFolder);
                                 }
+
                             });
-                        });
+                        }catch(e){
+                            logger.error('Error when connecting to Odyssey' + file);
+                            var errorFolder = config.repositories.data + 'error/';
+                            movingFileToFolder(file, errorFolder);
+                        }
+
                     } else {
                       logger.warn('Unknown source type, no call to ServiceNow');
                         //MOVE TO Unknown

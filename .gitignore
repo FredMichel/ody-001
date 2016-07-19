@@ -48,3 +48,4 @@ config
 IN/
 .DS_Store
 wsdl/
+import

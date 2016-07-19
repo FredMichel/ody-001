@@ -64,11 +64,11 @@ for (var i in plugins) {
 
 //Function to check if an existing file is in the input folder
 var inputFolder = ls(config.repositories.input);
-logger.info("Files already in the input file =" + inputFolder);
+
 var exitingFiles = inputFolder.length;
 if (exitingFiles > 0) {
     var filesNumber = 0;
-
+    logger.info("Files already in the input file =" + inputFolder);
     for (i = 0; i < exitingFiles; i++) {
         logger.info('The file ' + inputFolder[i] + ' is being processed');
         getPlugin(config.repositories.input + inputFolder[i], function(err, processor) {
@@ -81,7 +81,8 @@ if (exitingFiles > 0) {
         });
     }
 } else {
-    logger.info('File not Found in ' + config.repositories.input);
+
+    logger.info('No file in ' + config.repositories.input);
 }
 
 /**{
