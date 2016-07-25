@@ -11,25 +11,20 @@ var xml2js = require('xml2js');
 var winston = require('winston');
 var chokidar = require('chokidar');
 var dateFormat = require('dateformat');
+var path = require('path');
 
 require('shelljs/global');
 
 var sourceTypeObj = require('../lib/publishing.headers');
+var pathUtils = require('../lib/pathUtils.js');
+var parseUtils = require('../lib/parseUtils.js');
 
 var logger = new(winston.Logger)({
     transports: [
         new(winston.transports.File)({
-            filename: config.repositories.logs + 'logs',
+            filename: pathUtils.getPath(config.repositories.logs, 'logs'),
             json: false,
-
-            /**timestamp: function() {
-                return dateFormat(new Date(), "yyyy-mm-dd HH:MM:ss.l");
-            },
-            formatter: function(options) {
-                // Return string will be passed to logger.
-                return options.timestamp + ' ' + options.level.toUpperCase(); + ' ' + (undefined !== options.message ? options.message : '') +
-                (options.meta && Object.keys(options.meta).length ? '\n\t' + JSON.stringify(options.meta) : '');
-            }**/
+            level: config.monitoring.log_levels
         })
     ]
 });
@@ -40,26 +35,26 @@ var Plugin = {
     setLogger : function (logger){
         this.logger = logger;
     },**/
-    getName: function () {
+    getName: function() {
         return 'Publishing Integration';
     },
-    getFilename: function () {
+    getFilename: function() {
         return 'publishing.js';
     },
-    isValid: function (file) {
+    isValid: function(file) {
         return true;
     },
-    start: function () {
+    start: function() {
         var file = this.filename;
-        logger.info (this.getName(),' - Processing', this.getFilename());
-        fs.readFile(file, 'utf8', function (err, input) {
+        logger.info(this.getName(), ' - Processing', this.getFilename());
+        fs.readFile(file, 'utf8', function(err, input) {
             if (err) {
                 return logger.error(err);
             }
             parse(input, {
                 delimiter: ';' //,
                     //quote: '~' // Commented TODO: tranform data and remove double quote from data
-            }, function (err, output) {
+            }, function(err, output) {
                 var args = {
                     record: []
                 };
@@ -68,20 +63,19 @@ var Plugin = {
                 var sourceType = "Unknown";
                 var dataModel = {};
                 var formatedDate = dateFormat(new Date(), "yyyymmddHHMMssl");
-                var fileFolders = file.split('/');
-                var fileName = fileFolders[(fileFolders.length - 1)];
+                var fileName = path.basename(file);
 
                 try {
-                    output.forEach(function (line, i) {
+                    output.forEach(function(line, i) {
                         if (i === 0) {
                             for (var id in sourceTypeObj) {
                                 var obj = sourceTypeObj[id];
 
                                 if (_.difference(line, obj.header).length === 0) {
                                     sourceType = obj;
-                                    var inFolder = config.repositories.data + sourceType.folder + '/in/';
-                                    var inPath = inFolder + fileName + '_' + formatedDate;
-                                    movingFileToFolder(file, inFolder, inPath);
+                                    var inFolder = pathUtils.getPath(config.repositories.data, sourceType.folder + '/in/');
+                                    var inPath = pathUtils.getPath(inFolder, fileName + '_' + formatedDate);
+                                    pathUtils.movingFileToFolder(file, inFolder, inPath);
                                     file = inPath;
                                     break;
                                 }
@@ -101,95 +95,59 @@ var Plugin = {
                     });
                     //console.log('sourcetype', sourceType);
                     if (sourceType != 'Unknown') {
-                        try{
-                            soap.createClient(config.repositories.wsdl + sourceType.url, function (err, client) {
+                        try {
+                            soap.createClient(pathUtils.getPath(config.repositories.wsdl, sourceType.url), function(err, client) {
 
                                 try {
                                     client.setSecurity(new soap.BasicAuthSecurity(config.servicenow.credentials.login, config.servicenow.credentials.password));
-                                    client.insertMultiple(args, function (err, result) {
+                                    client.insertMultiple(args, function(err, result) {
                                         if (err) {
                                             logger.error("An error occured during the SOAP call to ServiceNow : " + err);
-                                            var errorPath = config.repositories.data + sourceType.folder + '/error/';
-                                            movingFileToFolder(file, errorPath);
+                                            var errorPath = pathUtils.getPath(config.repositories.data, sourceType.folder + '/error/');
+                                            pathUtils.movingFileToFolder(file, errorPath);
                                         } else {
-                                            logger.info("This is the SOAP Response " + JSON.stringify(result));
-                                            var processedPath = config.repositories.data + sourceType.folder + '/processed/';
-                                            movingFileToFolder(file, processedPath);
+                                            logger.info("Response from Odyssey: \n" + parseUtils.getStatusSummary(result));
+                                            var processedPath = pathUtils.getPath(config.repositories.data, sourceType.folder + '/processed/');
+                                            pathUtils.movingFileToFolder(file, processedPath);
                                         }
                                     });
-                                    logger.info('Pushing ' + args.record.length + ' records of ' + sourceType.header + ' to ServiceNow');
-                                }catch(e){
-                                    console.log ('error');
+                                    logger.info('Pushing ' + args.record.length + ' records of ' + sourceType.folder + ' to ServiceNow');
+                                } catch (e) {
+                                    console.log('error');
                                     logger.error('Error when connecting to Odyssey' + e);
-                                    var errorFolder = config.repositories.data + 'error/';
-                                    movingFileToFolder(file, errorFolder);
+                                    var errorFolder = pathUtils.getPath(config.repositories.data, 'error/');
+                                    pathUtils.movingFileToFolder(file, errorFolder);
                                 }
 
                             });
-                        }catch(e){
+                        } catch (e) {
                             logger.error('Error when connecting to Odyssey' + file);
-                            var errorFolder = config.repositories.data + 'error/';
-                            movingFileToFolder(file, errorFolder);
+                            var errorFolder = pathUtils.getPath(config.repositories.data, 'error/');
+                            pathUtils.movingFileToFolder(file, errorFolder);
                         }
 
                     } else {
-                      logger.warn('Unknown source type, no call to ServiceNow');
+                        logger.warn('Unknown source type, no call to ServiceNow');
                         //MOVE TO Unknown
                         //shell.mv('-n', file, DATA_FOLDER + '/unknown'); //Move file to folder
-                        var unknownFolder = config.repositories.data + 'unknown/';
-                        var unknownPath = unknownFolder + fileName + '_' + formatedDate;
-                        movingFileToFolder(file, unknownFolder, unknownPath);
+                        var unknownFolder = pathUtils.getPath(config.repositories.data, 'unknown/');
+                        var unknownPath = pathUtils.getPath(unknownFolder, fileName + '_' + formatedDate);
+                        pathUtils.movingFileToFolder(file, unknownFolder, unknownPath);
                     }
                 } catch (exception) {
                     logger.warn('Unknown source type, no call to ServiceNow for file' + file);
                     //MOVE TO Unknown
                     //shell.mv('-n', file, DATA_FOLDER + '/unknown'); //Move file to folder
-                    var unknownNoMatchFolder = config.repositories.data + 'unknown/';
-                    var unknownNoMatchPath = unknownNoMatchFolder + fileName + '_' + formatedDate;
-                    movingFileToFolder(file, unknownNoMatchFolder, unknownNoMatchPath);
+                    var unknownNoMatchFolder = pathUtils.getPath(config.repositories.data, 'unknown/');
+                    var unknownNoMatchPath = pathUtils.getPath(unknownNoMatchFolder, fileName + '_' + formatedDate);
+                    pathUtils.movingFileToFolder(file, unknownNoMatchFolder, unknownNoMatchPath);
                 }
             });
         });
     },
-    setFilename: function (f) {
+    setFilename: function(f) {
         this.filename = f;
     }
 };
-
-/**
- * This function tests if a folder exists.
- * If not it will be created as well as the intermediate folder if necessary
- *
- * Parameters:
- * - folder: the folder to check existence
- *
- * Return:
- * - void
- */
-function testFolderExist(folder) {
-    if (!test('-d', folder)) {
-        mkdir('-p', folder);
-        logger.info('Creation of folder ' + folder);
-    }
-}
-
-/**
- * This function is moving a file from a folder to an other
- *
- * Parameters:
- * - file: the file to move
- * - folder: desination folder
- * - dest: destintion forlder or file if a renaming is made
- *
- * Return:
- * - void
- */
-function movingFileToFolder(file, folder, dest) {
-    var dest = dest || folder;
-
-    testFolderExist(folder);
-    mv('-n', file, dest);
-    logger.info("Moving file " + file + " to " + dest);
-}
 
 module.exports = Plugin;

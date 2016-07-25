@@ -47,5 +47,5 @@ data.zip
 config
 IN/
 .DS_Store
-wsdl/
+wsdl
 import
