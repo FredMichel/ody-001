@@ -35,26 +35,26 @@ var Plugin = {
     setLogger : function (logger){
         this.logger = logger;
     },**/
-    getName: function() {
+    getName: function () {
         return 'Publishing Integration';
     },
-    getFilename: function() {
+    getFilename: function () {
         return 'publishing.js';
     },
-    isValid: function(file) {
-        return true;
+    isValid: function (file) {
+        return false;
     },
-    start: function() {
+    start: function () {
         var file = this.filename;
         logger.info(this.getName(), ' - Processing', this.getFilename());
-        fs.readFile(file, 'utf8', function(err, input) {
+        fs.readFile(file, 'utf8', function (err, input) {
             if (err) {
                 return logger.error(err);
             }
             parse(input, {
                 delimiter: ';' //,
                     //quote: '~' // Commented TODO: tranform data and remove double quote from data
-            }, function(err, output) {
+            }, function (err, output) {
                 var args = {
                     record: []
                 };
@@ -66,7 +66,7 @@ var Plugin = {
                 var fileName = path.basename(file);
 
                 try {
-                    output.forEach(function(line, i) {
+                    output.forEach(function (line, i) {
                         if (i === 0) {
                             for (var id in sourceTypeObj) {
                                 var obj = sourceTypeObj[id];
@@ -96,11 +96,11 @@ var Plugin = {
                     //console.log('sourcetype', sourceType);
                     if (sourceType != 'Unknown') {
                         try {
-                            soap.createClient(pathUtils.getPath(config.repositories.wsdl, sourceType.url), function(err, client) {
+                            soap.createClient(pathUtils.getPath(config.repositories.wsdl, sourceType.url), function (err, client) {
 
                                 try {
                                     client.setSecurity(new soap.BasicAuthSecurity(config.servicenow.credentials.login, config.servicenow.credentials.password));
-                                    client.insertMultiple(args, function(err, result) {
+                                    client.insertMultiple(args, function (err, result) {
                                         if (err) {
                                             logger.error("An error occured during the SOAP call to ServiceNow : " + err);
                                             var errorPath = pathUtils.getPath(config.repositories.data, sourceType.folder + '/error/');
@@ -145,7 +145,7 @@ var Plugin = {
             });
         });
     },
-    setFilename: function(f) {
+    setFilename: function (f) {
         this.filename = f;
     }
 };
