@@ -40,7 +40,7 @@ var Plugin = {
     getName: function() {
         return 'Publishing Integration';
     },
-    getFilename: function() {
+    getFilename: function () {
         return 'publishing.js';
     },
 
@@ -116,7 +116,6 @@ var Plugin = {
         try {
             var csvHeader = head(file);
             var returnValid = csvHeader.head('-n', 1).stdout;
-
             for (var id in sourceTypeObj) {
                 var obj = sourceTypeObj[id];
                 if (returnValid.indexOf(obj.header.join(";")) != -1) {
