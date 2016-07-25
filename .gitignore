@@ -46,6 +46,7 @@ logs/
 data.zip
 config
 IN/
-.DS_Store
 wsdl/
 import
+.DS_Store
+log/
