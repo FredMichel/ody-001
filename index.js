@@ -27,16 +27,14 @@ var chokidar = require('chokidar');
 var dateFormat = require('dateformat');
 require('shelljs/global');
 
-// Added new feature for moving files
-/**winston.add(winston.transports.File, {
-    filename: config.repositories.logs + 'logs'
-});**/
+var pathUtils = require('./lib/pathUtils.js');
+
 var logger = new(winston.Logger)({
     transports: [
         new(winston.transports.File)({
-            filename: config.repositories.logs + 'logs',
+            filename: pathUtils.getPath(config.repositories.logs , 'logs'),
             json: false,
-
+            level: config.monitoring.log_level
         })
     ]
 });
@@ -47,7 +45,7 @@ var plugins = [];
 
 
 for (var i in config.capabilities) {
-    plugins.push(require(config.repositories.plugins + config.capabilities[i] + '.js'));
+    plugins.push(require(pathUtils.getPath(config.repositories.plugins , config.capabilities[i] + '.js')));
 }
 
 for (var i in plugins) {
@@ -64,10 +62,10 @@ var inputFolder = ls(config.repositories.input);
 var exitingFiles = inputFolder.length;
 if (exitingFiles > 0) {
     var filesNumber = 0;
-    logger.info("Files already in the input file =" + inputFolder);
+    logger.info(exitingFiles + " files already in the input file =" + inputFolder);
     for (i = 0; i < exitingFiles; i++) {
         logger.info('The file ' + inputFolder[i] + ' is being processed');
-        getPlugin(config.repositories.input + inputFolder[i], function(err, processor) {
+        getPlugin(pathUtils.getPath(config.repositories.input , inputFolder[i]), function(err, processor) {
             if (err) {
                 // No plugin matches
                 logger.error('Unknown format', f);
@@ -77,25 +75,9 @@ if (exitingFiles > 0) {
         });
     }
 } else {
-
-    logger.info('No file in ' + config.repositories.input);
+    logger.info('File not Found in ' + config.repositories.input);
 }
 
-/**{
-    winston.info('File Found in ' + config.repositories.input);
-    console.log('File Found in ' + config.repositories.input);
-    getPlugin(f, function(err, processor) {
-        if (err) {
-            // No plugin matches
-            winston.error('Unknown format', f);
-            return;
-        }
-        processor.start();
-    });
-} else {
-    console.log('File not Found in ' + config.repositories.input)
-}
-**/
 watch.createMonitor(config.repositories.input, function(monitor) {
     //monitor.files['/home/mikeal/.zshrc'] // Stat object for my zshrc.
     monitor.on("created", function(f, stat) {
