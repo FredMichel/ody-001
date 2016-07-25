@@ -37,14 +37,6 @@ var logger = new(winston.Logger)({
             filename: config.repositories.logs + 'logs',
             json: false,
 
-            /**timestamp: function() {
-                return dateFormat(new Date(), "yyyy-mm-dd HH:MM:ss.l");
-            },
-            formatter: function(options) {
-                // Return string will be passed to logger.
-                return options.timestamp + ' ' + options.level.toUpperCase(); + ' ' + (undefined !== options.message ? options.message : '') +
-                (options.meta && Object.keys(options.meta).length ? '\n\t' + JSON.stringify(options.meta) : '');
-            }**/
         })
     ]
 });
@@ -61,6 +53,10 @@ for (var i in config.capabilities) {
 for (var i in plugins) {
     logger.info('Plugin loaded successfully : [' + plugins[i].getName() + ']');
 }
+
+
+
+
 
 //Function to check if an existing file is in the input folder
 var inputFolder = ls(config.repositories.input);
