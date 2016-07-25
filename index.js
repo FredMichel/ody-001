@@ -13,9 +13,6 @@
  * winston : Log management
  * dateformat : Date time management
  */
-
-
-var config = require('./config/config.json');
 var soap = require('soap');
 var parse = require('csv-parse');
 var fs = require('fs');
@@ -26,13 +23,18 @@ var winston = require('winston');
 var chokidar = require('chokidar');
 var dateFormat = require('dateformat');
 require('shelljs/global');
+var path = require('path');
+var CronJob = require('cron').CronJob;
 
-var pathUtils = require('./lib/pathUtils.js');
+var config = require(path.resolve('config', 'config.json'));
+var pathUtils = require(path.resolve('lib', 'pathUtils.js'));
+
+//process.env.TZ = config.timezone.singapore;
 
 var logger = new(winston.Logger)({
     transports: [
         new(winston.transports.File)({
-            filename: pathUtils.getPath(config.repositories.logs , 'logs'),
+            filename: pathUtils.getFilePath(config.repositories.logs, 'logs'),
             json: false,
             level: config.monitoring.log_level
         })
@@ -42,60 +44,98 @@ var logger = new(winston.Logger)({
 var plugins = [];
 
 // Initilisation plugins
-
-
-for (var i in config.capabilities) {
-    plugins.push(require(pathUtils.getPath(config.repositories.plugins , config.capabilities[i] + '.js')));
+try {
+    for (var i in config.capabilities) {
+        plugins.push(require(pathUtils.getFilePath(config.repositories.plugins, config.capabilities[i] + '.js')));
+    }
+} catch (e) {
+    logger.error('An error occured while loading the plugins : ' + e);
 }
 
 for (var i in plugins) {
     logger.info('Plugin loaded successfully : [' + plugins[i].getName() + ']');
 }
 
-//Function to check if an existing file is in the input folder
-var inputFolder = ls(config.repositories.input);
-
-var exitingFiles = inputFolder.length;
-if (exitingFiles > 0) {
-    var filesNumber = 0;
-    logger.info(exitingFiles + " files already in the input file =" + inputFolder);
-    for (i = 0; i < exitingFiles; i++) {
-        logger.info('The file ' + inputFolder[i] + ' is being processed');
-        getPlugin(pathUtils.getPath(config.repositories.input , inputFolder[i]), function(err, processor) {
-            if (err) {
-                // No plugin matches
-                logger.error('Unknown format', f);
-                return;
-            }
-            processor.start();
+if (config.plugin_scheduler_mode) {
+    try {
+        var job = new CronJob({
+            cronTime: config.plugin_schedule_frequency,
+            // Function to run when the cronTime is met
+            onTick: function() {
+                checkExistingFileInInputFolder();
+            },
+            // Function that runs when the onTick function ends
+            onComplete: function() {
+            },
+            start: true
+                //timeZone: config.timezone.singapore
         });
+    } catch (e) {
+        logger.error('An error occured during the initilisation of the cron process : ' + e);
     }
 } else {
-    logger.info('File not Found in ' + config.repositories.input);
-}
+    checkExistingFileInInputFolder();
 
-watch.createMonitor(config.repositories.input, function(monitor) {
-    //monitor.files['/home/mikeal/.zshrc'] // Stat object for my zshrc.
-    monitor.on("created", function(f, stat) {
-        getPlugin(f, function(err, processor) {
-            if (err) {
-                // No plugin matches
-                logger.error('Unknown format', f);
-                return;
-            }
-            processor.start();
+    watch.createMonitor(config.repositories.input, function(monitor) {
+        //monitor.files['/home/mikeal/.zshrc'] // Stat object for my zshrc.
+        monitor.on("created", function(f, stat) {
+            getPlugin(f, function(err, processor) {
+                if (err) {
+                    // No plugin matches
+                    logger.error('Unknown format', f);
+                    return;
+                }
+                processor.start();
+            });
+        });
+        monitor.on("changed", function(f, curr, prev) {
+            logger.info('File changes detected !', f);
+        });
+        monitor.on("removed", function(f, stat) {
+            // Handle removed files
         });
     });
-    monitor.on("changed", function(f, curr, prev) {
-        logger.info('File changes detected !', f);
-        //processFileCSV(f);
-    });
-    monitor.on("removed", function(f, stat) {
-        // Handle removed files
-    });
-    //monitor.stop(); // Stop watching
-});
+}
 
+
+function checkExistingFileInInputFolder() {
+    //Function to check if an existing file is in the input folder
+    try {
+        var inputFolder = ls('-l', path.resolve(config.repositories.input));
+        var exitingFiles = inputFolder.length;
+        if (exitingFiles > 0 && !config.plugin_scheduler_mode) {
+            var filesNumber = 0;
+            logger.info(exitingFiles + " files already in the input file =" + inputFolder);
+            for (var singleFile in inputFolder) {
+                if (!isNaN(parseInt(singleFile))) {
+                    var fileObj = inputFolder[singleFile];
+                    logger.info('The file ' + fileObj.name + ' is being processed.');
+                    getPlugin(pathUtils.getFilePath(config.repositories.input, fileObj.name), function(err, processor) {
+                        if (err) {
+                            // No plugin matches
+                            logger.error('Unknown format', inputFolder[i]);
+                            return;
+                        }
+                        processor.start();
+                    });
+                }
+            }
+        } else if (exitingFiles > 0 && config.plugin_scheduler_mode) {
+            getPlugin(inputFolder, function(err, processor) {
+                if (err) {
+                    // No plugin matches
+                    logger.error('Unknown format', inputFolder[i]);
+                    return;
+                }
+                processor.start();
+            });
+        } else {
+            logger.info('File not Found in ' + config.repositories.input);
+        }
+    } catch (e) {
+        logger.error('An error occured while verifying for existing file in ' + config.repositories.input + ' : ' + e);
+    }
+}
 
 function getPlugin(f, callback) {
     callback = callback || function() {};
@@ -108,9 +148,11 @@ function getPlugin(f, callback) {
             i++;
         }
     }
-    if (isValid) {
+    if (isValid && !config.plugin_scheduler_mode) {
         plugins[i].setFilename(f);
         //plugins[i].setLogger(logger);
+        callback(null, plugins[i]);
+    } else if (isValid && config.plugin_scheduler_mode) {
         callback(null, plugins[i]);
     } else {
         callback(true);
