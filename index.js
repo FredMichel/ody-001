@@ -65,8 +65,7 @@ if (config.plugin_scheduler_mode) {
                 checkExistingFileInInputFolder();
             },
             // Function that runs when the onTick function ends
-            onComplete: function() {
-            },
+            onComplete: function() {},
             start: true
                 //timeZone: config.timezone.singapore
         });
@@ -101,37 +100,51 @@ if (config.plugin_scheduler_mode) {
 function checkExistingFileInInputFolder() {
     //Function to check if an existing file is in the input folder
     try {
-        var inputFolder = ls('-l', path.resolve(config.repositories.input));
-        var exitingFiles = inputFolder.length;
-        if (exitingFiles > 0 && !config.plugin_scheduler_mode) {
-            var filesNumber = 0;
-            logger.info(exitingFiles + " files already in the input file =" + inputFolder);
-            for (var singleFile in inputFolder) {
-                if (!isNaN(parseInt(singleFile))) {
-                    var fileObj = inputFolder[singleFile];
-                    logger.info('The file ' + fileObj.name + ' is being processed.');
-                    getPlugin(pathUtils.getFilePath(config.repositories.input, fileObj.name), function(err, processor) {
+        fs.readdir(path.resolve(config.repositories.input), function(err, files) {
+            if (err) {
+                logger.error('An error occured when reading the input folder ' + config.repositories.input, e);
+            }
+
+            var filesWithStats = [];
+            _.each(files, function getFileStats(file) {
+                var fileStats = fs.statSync(path.resolve(config.repositories.input, file));
+
+                filesWithStats.push({
+                    filename: file,
+                    ctime: fileStats.ctime
+                });
+                file = null;
+                _.sortBy(filesWithStats, 'ctime').reverse();
+            });
+            var exitingFiles = filesWithStats.length;
+            if (exitingFiles > 0 && !config.plugin_scheduler_mode) {
+                var filesNumber = 0;
+                logger.info(exitingFiles + " files already in the input file =" + filesWithStats);
+                for (var singleFile in filesWithStats) {
+                    var fileObj = filesWithStats[singleFile];
+                    logger.info('The file ' + fileObj.filename + ' is being processed.');
+                    getPlugin(pathUtils.getFilePath(config.repositories.input, fileObj.filename), function(err, processor) {
                         if (err) {
                             // No plugin matches
-                            logger.error('Unknown format', inputFolder[i]);
+                            logger.error('An error occured while trying to get a plugin for the file : ' + filesWithStats[singleFile], err);
                             return;
                         }
                         processor.start();
                     });
                 }
+            } else if (exitingFiles > 0 && config.plugin_scheduler_mode) {
+                getPlugin(filesWithStats, function(err, processor) {
+                    if (err) {
+                        // No plugin matches
+                        logger.error('An issue occured while trying to get a plugin for the following files :' + filesWithStats, err);
+                        return;
+                    }
+                    processor.start();
+                });
+            } else {
+                logger.info('File not Found in ' + config.repositories.input);
             }
-        } else if (exitingFiles > 0 && config.plugin_scheduler_mode) {
-            getPlugin(inputFolder, function(err, processor) {
-                if (err) {
-                    // No plugin matches
-                    logger.error('Unknown format', inputFolder[i]);
-                    return;
-                }
-                processor.start();
-            });
-        } else {
-            logger.info('File not Found in ' + config.repositories.input);
-        }
+        });
     } catch (e) {
         logger.error('An error occured while verifying for existing file in ' + config.repositories.input + ' : ' + e);
     }
