@@ -40,7 +40,7 @@ var Plugin = {
     getName: function() {
         return 'Publishing Integration';
     },
-    getFilename: function () {
+    getFilename: function() {
         return 'publishing.js';
     },
 
@@ -64,17 +64,17 @@ var Plugin = {
         var isValid = false;
         var fileLength = files.length;
         for (var singleFile in files) {
-
-            if (!isNaN(parseInt(singleFile))) {
-                var file = files[singleFile];
-                var verif = this.verifyHeader(path.resolve(config.repositories.input, file.name));
-                logger.debug('The file ' + file + ' is to be added at position ' + verif.sourceType.sequenceOrder + ' in the process sequence.');
-                this.loadSequence[verif.sourceType.sequenceOrder] = {
-                    path: path.resolve(config.repositories.input, file.name),
-                    sourceType: verif.sourceType
-                };
-                isValid = verif.isValid || isValid;
+            var file = files[singleFile];
+            var verif = this.verifyHeader(path.resolve(config.repositories.input, file.filename));
+            logger.debug('The file ' + file + ' is to be added at position ' + verif.sourceType.sequenceOrder + ' in the process sequence.');
+            if (_.isNil(this.loadSequence[verif.sourceType.sequenceOrder])) {
+                this.loadSequence[verif.sourceType.sequenceOrder] = [];
             }
+            this.loadSequence[verif.sourceType.sequenceOrder].push({
+                path: path.resolve(config.repositories.input, file.filename),
+                sourceType: verif.sourceType
+            });
+            isValid = verif.isValid || isValid;
         }
         return isValid;
     },
@@ -87,7 +87,10 @@ var Plugin = {
                 var loadObj = this.loadSequence[i];
                 logger.debug('This is the file being process ' + JSON.stringify(loadObj));
                 if (!_.isNil(loadObj)) {
-                    this.sendOdysseyRequest(loadObj.path);
+                    for (var j = 0; j < loadObj.length; j++) {
+                        var orderFile = loadObj[j];
+                        this.sendOdysseyRequest(orderFile.path);
+                    }
                 }
             }
         } else {
