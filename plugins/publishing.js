@@ -137,18 +137,28 @@ var Plugin = {
                 if (err) {
                     return logger.error(err);
                 }
+                var sourceType = "Unknown";
+                var dataModel = {};
+                var formatedDate = dateFormat(new Date(), "yyyymmddHHMMssl");
+                var fileName = path.basename(file);
+
                 parse(input, {
                     delimiter: ';' //,
                         //quote: '~' // Commented TODO: tranform data and remove double quote from data
                 }, function(err, output) {
+
+                    if (err){
+                        var unknownFolder = path.join(config.repositories.data, 'unknown');
+                        var unknownPath = pathUtils.getFilePath(unknownFolder, fileName + '_' + formatedDate);
+                        pathUtils.movingFileToFolder(file, unknownFolder, unknownPath);
+                        return logger.error('Unknown file :', file);
+                    }
+
                     var args = {
                         record: []
                     };
 
-                    var sourceType = "Unknown";
-                    var dataModel = {};
-                    var formatedDate = dateFormat(new Date(), "yyyymmddHHMMssl");
-                    var fileName = path.basename(file);
+
 
                     try {
                         output.forEach(function(line, i) {
@@ -166,7 +176,7 @@ var Plugin = {
                                     }
                                 }
                             }
-                            if (i !== 0 && sourceType != 'Unknown' && i < 2000) {
+                            if (i !== 0 && sourceType != 'Unknown') {
                                 var record = {};
                                 var dataModel = sourceType.mapping;
                                 for (var k in dataModel) {
@@ -178,27 +188,33 @@ var Plugin = {
                         if (sourceType != 'Unknown') {
                             try {
                                 soap.createClient(pathUtils.getFilePath(config.repositories.wsdl, sourceType.url), function(err, client) {
+                                    if (err){
+                                        return logger.error(err);
+                                    }
 
                                     try {
                                         client.setSecurity(new soap.BasicAuthSecurity(config.servicenow.credentials.login, config.servicenow.credentials.password));
                                         try {
                                             client.insertMultiple(args, function(err, result) {
                                                 if (err) {
-                                                    logger.error('An error occured during the SOAP call to ServiceNow : ' + err);
+
                                                     var errorPath = path.join(config.repositories.data, sourceType.folder, 'error');
                                                     pathUtils.movingFileToFolder(file, errorPath);
-                                                } else {
-                                                    logger.info('Response from Odyssey: \n' + parseUtils.getStatusSummary(result));
-                                                    var processedPath = path.join(config.repositories.data, sourceType.folder, 'processed');
-                                                    pathUtils.movingFileToFolder(file, processedPath);
+                                                    return logger.error('An error occured during the SOAP call to ServiceNow : ' + err);
                                                 }
+                                                logger.info('[ ' + sourceType.folder + ' ] Response from Odyssey: ' + parseUtils.getStatusSummary(result));
+                                                var processedPath = path.join(config.repositories.data, sourceType.folder, 'processed');
+                                                pathUtils.movingFileToFolder(file, processedPath);
+
+
+
                                             });
                                         } catch (e) {
                                             logger.error('Error during sending request to Odyssey :' + e);
                                             var errorFolder = path.join(config.repositories.data, sourceType.folder, 'error');
                                             pathUtils.movingFileToFolder(file, errorFolder);
                                         }
-                                        logger.info('Pushing ' + args.record.length + ' records of ' + sourceType.folder + ' to ServiceNow');
+                                        logger.info('[ '+sourceType.folder + ' ] Pushing ' + args.record.length + ' records to Odyssey');
                                     } catch (e) {
                                         logger.error('Error when connecting to Odyssey :' + e);
                                         var errorFolderWS = path.join(config.repositories.data, 'error');
