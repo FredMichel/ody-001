@@ -188,7 +188,6 @@ var Plugin = {
                         if (sourceType != 'Unknown') {
                             try {
                                 soap.createClient(pathUtils.getFilePath(config.repositories.wsdl, sourceType.url), function(err, client) {
-                                    console.log ('OK : ', sourceType.url);
                                     if (err){
                                         return logger.error(err);
                                     }
@@ -206,6 +205,8 @@ var Plugin = {
                                                 logger.info('[ ' + sourceType.folder + ' ] Response from Odyssey: ' + parseUtils.getStatusSummary(result));
                                                 var processedPath = path.join(config.repositories.data, sourceType.folder, 'processed');
                                                 pathUtils.movingFileToFolder(file, processedPath);
+
+
 
                                             });
                                         } catch (e) {

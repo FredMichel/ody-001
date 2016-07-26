@@ -69,7 +69,6 @@ try {
 
 
 for (var i in plugins) {
-    console.log (plugins[i].getName());
     logger.info('Plugin loaded successfully : [' + plugins[i].getName() + ']');
 }
 
@@ -96,9 +95,10 @@ if (config.plugin_scheduler_mode) {
 
     var watcher = chokidar.watch(config.repositories.input, {
         ignored: /[\/\\]\./,
+        usePolling : true,
         awaitWriteFinish : {
-            stabilityThreshold : 4000,
-            pollInterval : 100
+            stabilityThreshold : 10000,
+            pollInterval : 1000
         },
         persistent: true
     });
@@ -123,33 +123,6 @@ if (config.plugin_scheduler_mode) {
       })
       .on('change', function (path) {console.log ('added', path)})
       .on('unlink', function (path) {console.log ('unlink', path)});
-
-/*
-
-    watch.createMonitor(config.repositories.input, function(monitor) {
-
-        monitor.on("created", function(f, stat) {
-
-            getPlugin(f, function(err, processor) {
-                if (err) {
-                    // No plugin matches
-                    logger.error('Unknown format', f);
-                    return;
-                }
-                console.log ('File detected :', f);
-                //processor.start();
-            });
-
-
-        });
-        monitor.on("changed", function(f, curr, prev) {
-            logger.info('File changes detected !', f);
-        });
-        monitor.on("removed", function(f, stat) {
-            // Handle removed files
-        });
-    });
-    */
 }
 
 
