@@ -108,15 +108,15 @@ if (config.plugin_scheduler_mode) {
           getPlugin(f, function(err, processor) {
               if (err) {
                   // No plugin matches
-                  var formatedDate = dateFormat(new Date(), "yyyymmddHHMMssl");
-                  var fileName = path.basename(f);
-                  var unknownFolder = path.join(config.repositories.data, 'unknown');
-                  var unknownPath = pathUtils.getFilePath(unknownFolder, fileName + '_' + formatedDate);
-                  pathUtils.movingFileToFolder(f, unknownFolder, unknownPath);
-                  logger.error('Unknown format', f);
-                  return;
+                  pathUtils.moveToUnknownFolder(f, logger, function (err, result){
+                      if (err){
+                          return false;
+                      }
+                  });
+
+                  return false;
               }
-              console.log ('File detected :', f);
+
               processor.start();
           });
 
