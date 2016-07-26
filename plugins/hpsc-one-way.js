@@ -1,4 +1,3 @@
-var config = require('../config/config.json');
 var soap = require('soap');
 var parse = require('csv-parse');
 var fs = require('fs');
@@ -11,10 +10,11 @@ var dateFormat = require('dateformat');
 var parseString = require('xml2js').parseString;
 var path = require('path');
 
+var config = require(path.resolve('config', 'config.json'));
+var sourceTypeObj = require(path.resolve('lib', 'hpscOneWay.headers'));
+var pathUtils = require(path.resolve('lib', 'pathUtils.js'));
+var parseUtils = require(path.resolve('lib', 'parseUtils.js'));
 
-var sourceTypeObj = require('../lib/hpscOneWay.headers');
-var pathUtils = require('../lib/pathUtils.js');
-var parseUtils = require('../lib/parseUtils.js');
 
 /**
  * Initialize logger
