@@ -7,7 +7,7 @@
  * soap : Soap client
  * fs : file system
  * parse : CSV management
- * chokidar : File monitoring (will replace parse)
+ * chokidar : File monitoring (will replace watch)
  * _ : Utilities array, object , ....
  * xml2js : XML management
  * winston : Log management
@@ -43,6 +43,21 @@ var logger = new(winston.Logger)({
 
 var plugins = [];
 
+var watcher = chokidar.watch('file, dir, glob, or array', {
+    ignored: /[\/\\]\./,
+    persistent: true
+});
+
+
+
+if (! fs.existsSync(config.repositories.input)) {
+    console.log (config.repositories.input + ' does not exist, please check config.json');
+    logger.error(config.repositories.input + ' does not exist, please check config.json');
+    process.exit(0);
+}
+
+
+
 // Initilisation plugins
 try {
     for (var i in config.capabilities) {
@@ -52,7 +67,9 @@ try {
     logger.error('An error occured while loading the plugins : ' + e);
 }
 
+
 for (var i in plugins) {
+    console.log (plugins[i].getName());
     logger.info('Plugin loaded successfully : [' + plugins[i].getName() + ']');
 }
 
@@ -74,19 +91,56 @@ if (config.plugin_scheduler_mode) {
         logger.error('An error occured during the initilisation of the cron process : ' + e);
     }
 } else {
-    checkExistingFileInInputFolder();
+
+   // checkExistingFileInInputFolder();
+
+    var watcher = chokidar.watch(config.repositories.input, {
+        ignored: /[\/\\]\./,
+        awaitWriteFinish : {
+            stabilityThreshold : 4000,
+            pollInterval : 100
+        },
+        persistent: true
+    });
+
+    watcher
+      .on('add', function (f) {
+          getPlugin(f, function(err, processor) {
+              if (err) {
+                  // No plugin matches
+                  var formatedDate = dateFormat(new Date(), "yyyymmddHHMMssl");
+                  var fileName = path.basename(f);
+                  var unknownFolder = path.join(config.repositories.data, 'unknown');
+                  var unknownPath = pathUtils.getFilePath(unknownFolder, fileName + '_' + formatedDate);
+                  pathUtils.movingFileToFolder(f, unknownFolder, unknownPath);
+                  logger.error('Unknown format', f);
+                  return;
+              }
+              console.log ('File detected :', f);
+              processor.start();
+          });
+
+      })
+      .on('change', function (path) {console.log ('added', path)})
+      .on('unlink', function (path) {console.log ('unlink', path)});
+
+/*
 
     watch.createMonitor(config.repositories.input, function(monitor) {
-        //monitor.files['/home/mikeal/.zshrc'] // Stat object for my zshrc.
+
         monitor.on("created", function(f, stat) {
+
             getPlugin(f, function(err, processor) {
                 if (err) {
                     // No plugin matches
                     logger.error('Unknown format', f);
                     return;
                 }
-                processor.start();
+                console.log ('File detected :', f);
+                //processor.start();
             });
+
+
         });
         monitor.on("changed", function(f, curr, prev) {
             logger.info('File changes detected !', f);
@@ -95,7 +149,11 @@ if (config.plugin_scheduler_mode) {
             // Handle removed files
         });
     });
+    */
 }
+
+
+console.log ('File monitoring started ...');
 
 
 function checkExistingFileInInputFolder() {
@@ -103,6 +161,7 @@ function checkExistingFileInInputFolder() {
     try {
         var inputFolder = ls('-l', path.resolve(config.repositories.input));
         var exitingFiles = inputFolder.length;
+
         if (exitingFiles > 0 && !config.plugin_scheduler_mode) {
             var filesNumber = 0;
             logger.info(exitingFiles + " files already in the input file =" + inputFolder);
