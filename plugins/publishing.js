@@ -47,11 +47,11 @@ var Plugin = {
     isValid: function(file) {
         var isValid = false;
         try {
-            logger.info('Test the type of the input for isValid function.', JSON.stringify(file), (typeof file));
+            //logger.info('Test the type of the input for isValid function.', JSON.stringify(file), (typeof file));
             if ((typeof file) == 'string') {
                 isValid = this.verifyHeader(file).isValid;
             } else {
-                logger.info('The validation of file is made on an Array');
+                //logger.info('The validation of file is made on an Array');
                 isValid = this.isValidArray(file);
             }
         } catch (e) {
@@ -85,7 +85,7 @@ var Plugin = {
     start: function() {
         if (config.plugin_scheduler_mode) {
             var loadSequenceLength = this.loadSequence.length;
-            logger.info('The scheduler has to run the following sequence of files ' + JSON.stringify(this.loadSequence));
+            //logger.info('The scheduler has to run the following sequence of files ' + JSON.stringify(this.loadSequence));
             for (var i = 0; i < loadSequenceLength; i++) {
                 var loadObj = this.loadSequence[i];
                 logger.debug('This is the file being process ' + JSON.stringify(loadObj));
@@ -138,7 +138,7 @@ var Plugin = {
     },
 
     sendOdysseyRequest: function(file) {
-        logger.info(this.getName(), ' - Processing', this.getFilename());
+        //logger.info(this.getName(), ' - Processing', this.getFilename());
         try {
             fs.readFile(file, 'utf8', function(err, input) {
                 if (err) {
@@ -205,7 +205,7 @@ var Plugin = {
                                                 if (err) {
                                                     var errorPath = path.join(config.repositories.data, sourceType.folder, 'error');
                                                     pathUtils.movingFileToFolder(file, errorPath);
-                                                    return logger.error('An error occured during the SOAP call to ServiceNow : ' + err);
+                                                    return logger.error('[ ' + sourceType.folder + ' ] An error occured during the SOAP call to Odyssey : ' + err);
                                                 }
                                                 logger.info('[ ' + sourceType.folder + ' ] Response from Odyssey: ' + parseUtils.getStatusSummary(result));
                                                 var processedPath = path.join(config.repositories.data, sourceType.folder, 'processed');

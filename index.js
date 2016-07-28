@@ -25,8 +25,7 @@ var dateFormat = require('dateformat');
 require('shelljs/global');
 var path = require('path');
 var CronJob = require('cron').CronJob;
-var junk = require('junk')
-
+var junk = require('junk');
 var config = require(path.resolve('config', 'config.json'));
 var pathUtils = require(path.resolve('lib', 'pathUtils.js'));
 
@@ -79,6 +78,7 @@ if (config.plugin_scheduler_mode) {
             cronTime: config.plugin_schedule_frequency,
             // Function to run when the cronTime is met
             onTick: function() {
+                console.log ('Check');
                 checkExistingFileInInputFolder();
             },
             // Function that runs when the onTick function ends
@@ -180,7 +180,7 @@ function checkExistingFileInInputFolder() {
                     processor.start();
                 });
             } else {
-                logger.info('File not Found in ' + config.repositories.input);
+                //logger.info('File not Found in ' + config.repositories.input);
             }
         });
     } catch (e) {
