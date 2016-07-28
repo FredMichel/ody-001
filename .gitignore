@@ -43,6 +43,7 @@ data/
 mapping/
 node_modules/
 logs/
+TOBEDELETED/
 data.zip
 config
 IN/

@@ -109,7 +109,7 @@ var Plugin = {
                                 /**
                                  * Parse the source data to lowercase and add 'u_' to the property to match with SNOW
                                  **/
-                                sourceData = parseUtils.parseData(sourceData);
+                                sourceData = parseUtils.parseData(sourceData, action);
 
                                 var errFolder = path.join(config.repositories.data, sourceType.folder, 'error');
                                 var errPath = pathUtils.getFilePath(errFolder, fileName + '_' + formatedDate);
@@ -138,10 +138,37 @@ var Plugin = {
                                                     /**
                                                      * If no error, log and move to processed folder
                                                      **/
-                                                    logger.info("Response from Odyssey: \n" + parseUtils.getStatusSummary(result, 'hpsc'));
+
+                                                    logger.info("Response from Odyssey: " + parseUtils.getStatusSummary(result, 'hpsc'));
                                                     var processedFolder = path.join(config.repositories.data, sourceType.folder, 'processed');
                                                     var processedPath = pathUtils.getFilePath(processedFolder, fileName + '_' + formatedDate);
                                                     pathUtils.movingFileToFolder(file, processedFolder, processedPath);
+                                                    /**
+                                                     * Define out path for ODYSSEY Response
+                                                     **/
+                                                    var xmlFileName = 'ODYSSEY_' + result.display_value + '_AK_' + dateFormat(new Date(), "yyyymmdd") + '_' + dateFormat(new Date(), "hhmmss") + '.xml';
+                                                    /**
+                                                     * Build XML file
+                                                     **/
+                                                    var responseXML = parseUtils.getResponseXML(result, 'hpsc');
+                                                    if (responseXML) {
+                                                        try {
+                                                            /**
+                                                             * Write XML file
+                                                             **/
+                                                            fs.writeFile(xmlFileName, responseXML, function (err) {
+                                                                if (err) {
+                                                                    logger.error('Error writing xml file: ' + err);
+                                                                } else {
+                                                                    var outFolder = path.join(config.repositories.data, sourceType.folder, 'out');
+                                                                    var outPath = pathUtils.getFilePath(outFolder, xmlFileName);
+                                                                    pathUtils.movingFileToFolder(xmlFileName, outFolder, outPath);
+                                                                }
+                                                            })
+                                                        } catch (e) {
+                                                            logger.error('Error writing xml file: ' + e);
+                                                        }
+                                                    }
                                                 }
                                             });
                                             logger.info('Pushing record of ' + sourceType.folder + ' to ServiceNow');
