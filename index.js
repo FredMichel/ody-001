@@ -25,6 +25,7 @@ var dateFormat = require('dateformat');
 require('shelljs/global');
 var path = require('path');
 var CronJob = require('cron').CronJob;
+var junk = require('junk')
 
 var config = require(path.resolve('config', 'config.json'));
 var pathUtils = require(path.resolve('lib', 'pathUtils.js'));
@@ -139,6 +140,8 @@ function checkExistingFileInInputFolder() {
             if (err) {
                 logger.error('An error occured when reading the input folder ' + config.repositories.input, e);
             }
+            // This has been added to remove DS_staore and other hidden files
+            files = files.filter(junk.not);
 
             var filesWithStats = [];
             _.each(files, function getFileStats(file) {
