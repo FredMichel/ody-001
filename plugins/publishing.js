@@ -11,14 +11,16 @@ var winston = require('winston');
 var chokidar = require('chokidar');
 var dateFormat = require('dateformat');
 var path = require('path');
+var async = require('async');
 
 require('shelljs/global');
-
 
 var config = require(path.resolve('config', 'config.json'));
 var sourceTypeObj = require(path.resolve('lib', 'publishing.headers'));
 var pathUtils = require(path.resolve('lib', 'pathUtils.js'));
 var parseUtils = require(path.resolve('lib', 'parseUtils.js'));
+
+var asyncTasks = [];
 
 var logger = new(winston.Logger)({
     transports: [
@@ -32,10 +34,6 @@ var logger = new(winston.Logger)({
 
 var Plugin = {
     filename: '',
-    /**logger : new(winston.Logger),
-    setLogger : function (logger){
-        this.logger = logger;
-    },**/
     loadSequence: [],
     getName: function() {
         return 'Publishing Integration';
@@ -47,11 +45,11 @@ var Plugin = {
     isValid: function(file) {
         var isValid = false;
         try {
-            logger.info('Test the type of the input for isValid function.', JSON.stringify(file), (typeof file));
+            logger.debug('Test the type of the input for isValid function.', JSON.stringify(file), (typeof file));
             if ((typeof file) == 'string') {
                 isValid = this.verifyHeader(file).isValid;
             } else {
-                logger.info('The validation of file is made on an Array');
+                logger.debug('The validation of file is made on an Array');
                 isValid = this.isValidArray(file);
             }
         } catch (e) {
@@ -67,44 +65,37 @@ var Plugin = {
             var file = files[singleFile];
             var verif = this.verifyHeader(path.resolve(config.repositories.input, file.filename));
             logger.debug('The file ' + file + ' is to be added at position ' + verif.sourceType.sequenceOrder + ' in the process sequence.');
-            if (_.isNil(this.loadSequence[verif.sourceType.sequenceOrder])) {
-                this.loadSequence[verif.sourceType.sequenceOrder] = [];
-            }
-            this.loadSequence[verif.sourceType.sequenceOrder].push({
-                path: path.resolve(config.repositories.input, file.filename),
-                sourceType: verif.sourceType
-            });
-            if (!verif.isValid) {
-                pathUtils.moveToUnknownFolder(path.resolve(config.repositories.input, file.filename), logger);
-            }
             isValid = verif.isValid || isValid;
         }
         return isValid;
     },
 
     start: function() {
-        if (config.plugin_scheduler_mode) {
-            var loadSequenceLength = this.loadSequence.length;
-            logger.info('The scheduler has to run the following sequence of files ' + JSON.stringify(this.loadSequence));
-            for (var i = 0; i < loadSequenceLength; i++) {
-                var loadObj = this.loadSequence[i];
-                logger.debug('This is the file being process ' + JSON.stringify(loadObj));
-                if (!_.isNil(loadObj)) {
-                    for (var j = 0; j < loadObj.length; j++) {
-                        var orderFile = loadObj[j];
-                        this.sendOdysseyRequest(orderFile.path);
-                    }
-                }
-            }
-            this.loadSequence = [];
-        } else {
-            this.sendOdysseyRequest(this.filename);
-        }
+        var loadSequenceLength = this.loadSequence.length;
+        logger.debug('The scheduler has to run the following sequence of files ' + JSON.stringify(this.loadSequence));
+        var orderedFiles = _.orderBy(this.loadSequence, ['functionalOrder', 'timeStamp'], ['asc', 'asc']);
 
+        async.eachSeries(orderedFiles,
+            function(item, callback) {
+                addTask(item);
+                callback(null, item);
+            },
+            function(err, items) {
+                async.series(asyncTasks, function(err, result) {
+                    if (err) {
+                        return logger.error('An issue occured when processing pubishing files', err);
+                    }
+                    this.loadSequence = [];
+                    asyncTasks = [];
+                    logger.info('End of process for publishing plugin');
+                });
+            });
     },
+
     setFilename: function(f) {
         this.filename = f;
     },
+
     /**
      * This function verify if the file has a valid header and returns a boolean and the matching headerObj
      *
@@ -122,132 +113,178 @@ var Plugin = {
         };
         try {
             var csvHeader = head(file);
-            var returnValid = csvHeader.head('-n', 1).stdout;
+            var returnValid = _.split(_.trim(csvHeader.head('-n', 1).stdout), ';');
+
+            var obj = {};
             for (var id in sourceTypeObj) {
-                var obj = sourceTypeObj[id];
-                if (returnValid.indexOf(obj.header.join(";")) != -1) {
+                obj = sourceTypeObj[id];
+                if (_.difference(returnValid, obj.header).length === 0) {
                     verifyObj.isValid = true;
                     verifyObj.sourceType = obj;
                     break;
                 }
             }
+            if (verifyObj.isValid) {
+                var moveFilePath = pathUtils.moveFileToInFolder(file, verifyObj.sourceType);
+                this.loadSequence.push({
+                    path: moveFilePath,
+                    sourceType: verifyObj.sourceType,
+                    functionalOrder: verifyObj.sourceType.sequenceOrder,
+                    timeStamp: (fs.statSync(moveFilePath)).ctime // TODO: take timestamp from file
+                });
+            } else {
+                pathUtils.moveToUnknownFolder(file, logger);
+            }
         } catch (e) {
             logger.error('An error occured during the validation of the file for Publishing:' + e);
         }
         return verifyObj;
-    },
-
-    sendOdysseyRequest: function(file) {
-        logger.info(this.getName(), ' - Processing', this.getFilename());
-        try {
-            fs.readFile(file, 'utf8', function(err, input) {
-                if (err) {
-                    return logger.error(err);
-                }
-                var sourceType = "Unknown";
-                var dataModel = {};
-                var formatedDate = dateFormat(new Date(), "yyyymmddHHMMssl");
-                var fileName = path.basename(file);
-
-                parse(input, {
-                    delimiter: ';' //,
-                        //quote: '~' // Commented TODO: tranform data and remove double quote from data
-                }, function(err, output) {
-
-                    if (err) {
-                        var unknownFolder = path.join(config.repositories.data, 'unknown');
-                        var unknownPath = pathUtils.getFilePath(unknownFolder, fileName + '_' + formatedDate);
-                        pathUtils.movingFileToFolder(file, unknownFolder, unknownPath);
-                        return logger.error('Unknown file :', file, err);
-                    }
-
-                    var args = {
-                        record: []
-                    };
-
-
-
-                    try {
-                        output.forEach(function(line, i) {
-                            if (i === 0) {
-                                for (var id in sourceTypeObj) {
-                                    var obj = sourceTypeObj[id];
-                                    if (_.difference(line, obj.header).length === 0) {
-                                        sourceType = obj;
-                                        var inFolder = path.join(config.repositories.data, sourceType.folder, 'in');
-                                        var inPath = pathUtils.getFilePath(inFolder, fileName + '_' + formatedDate);
-                                        pathUtils.movingFileToFolder(file, inFolder, inPath);
-                                        file = inPath;
-                                        break;
-                                    }
-                                }
-                            }
-                            if (i !== 0 && sourceType != 'Unknown') {
-                                var record = {};
-                                var dataModel = sourceType.mapping;
-                                for (var k in dataModel) {
-                                    record[k] = '<![CDATA[' + line[dataModel[k]] + ']]>';
-                                }
-                                args.record.push(record);
-                            }
-                        });
-                        if (sourceType != 'Unknown') {
-                            try {
-                                soap.createClient(pathUtils.getFilePath(config.repositories.wsdl, sourceType.url), function(err, client) {
-                                    if (err) {
-                                        return logger.error(err);
-                                    }
-
-                                    try {
-                                        client.setSecurity(new soap.BasicAuthSecurity(config.servicenow.credentials.login, config.servicenow.credentials.password));
-                                        try {
-                                            client.insertMultiple(args, function(err, result) {
-                                                if (err) {
-                                                    var errorPath = path.join(config.repositories.data, sourceType.folder, 'error');
-                                                    pathUtils.movingFileToFolder(file, errorPath);
-                                                    return logger.error('An error occured during the SOAP call to ServiceNow : ' + err);
-                                                }
-                                                logger.info('[ ' + sourceType.folder + ' ] Response from Odyssey: ' + parseUtils.getStatusSummary(result));
-                                                var processedPath = path.join(config.repositories.data, sourceType.folder, 'processed');
-                                                pathUtils.movingFileToFolder(file, processedPath);
-                                            });
-                                        } catch (e) {
-                                            logger.error('Error during sending request to Odyssey :' + e);
-                                            var errorFolder = path.join(config.repositories.data, sourceType.folder, 'error');
-                                            pathUtils.movingFileToFolder(file, errorFolder);
-                                        }
-                                        logger.info('[ ' + sourceType.folder + ' ] Pushing ' + args.record.length + ' records to Odyssey');
-                                    } catch (e) {
-                                        logger.error('Error when connecting to Odyssey :' + e);
-                                        var errorFolderWS = path.join(config.repositories.data, 'error');
-                                        pathUtils.movingFileToFolder(file, errorFolderWS);
-                                    }
-
-                                });
-                            } catch (e) {
-                                logger.error('Error when connecting to Odyssey' + file);
-                                var errorFolder = path.join(config.repositories.data, 'error');
-                                pathUtils.movingFileToFolder(file, errorFolder);
-                            }
-
-                        } else {
-                            logger.warn('Unknown source type, no call to ServiceNow');
-                            var unknownFolder = path.join(config.repositories.data, 'unknown');
-                            var unknownPath = pathUtils.getFilePath(unknownFolder, fileName + '_' + formatedDate);
-                            pathUtils.movingFileToFolder(file, unknownFolder, unknownPath);
-                        }
-                    } catch (e) {
-                        logger.warn('Unknown source type, no call to ServiceNow for file' + file + ' ' + e);
-                        var unknownNoMatchFolder = path.join(config.repositories.data, 'unknown');
-                        var unknownNoMatchPath = pathUtils.getFilePath(unknownNoMatchFolder, fileName + '_' + formatedDate);
-                        pathUtils.movingFileToFolder(file, unknownNoMatchFolder, unknownNoMatchPath);
-                    }
-                });
-            });
-        } catch (e) {
-            logger.error('An error occured while reading file' + file + ' for Publishing : ' + e);
-        }
     }
 };
+
+/**
+ * THis funciton add a series of waterfall functions
+ *
+ * @param {[Object]} taskFile An object that contais the following attributes:
+ *                             path: a file path,
+ *                             sourceType: a sourcetype obj,
+ *                             functionalOrder: the functional order of the sourcetype Obj,
+ *                             timeStamp: a timestamp
+ *
+ */
+function addTask(taskFile) {
+    return asyncTasks.push(
+        function(callback) {
+            async.waterfall([
+                    function(callback) {
+                        readFile(taskFile, callback);
+                        //callback(null);
+                    },
+                    function(taskFile, ioStream, continueSerie, callback) {
+                        if (continueSerie) {
+                            parseCSV(taskFile, ioStream, callback);
+                        } else {
+                            callback(null, taskFile, null, false);
+                        }
+                    },
+                    function(taskFile, records, continueSerie, callback) {
+                        if (continueSerie) {
+                            request(taskFile, records, callback);
+                        } else {
+                            callback(null, taskFile, false);
+                        }
+                    }
+                ],
+                function(err, result) {
+                    callback(null, result);
+                });
+        });
+}
+
+/**
+ * This function is reading file
+ * @param  {[Object]}   taskFile An object that contais the following attributes:
+ *                             path: a file path,
+ *                             sourceType: a sourcetype obj,
+ *                             functionalOrder: the functional order of the sourcetype Obj,
+ *                             timeStamp: a timestamp
+ * @param  {Function} callback A callback function
+ * @return {[type]}            void
+ */
+function readFile(taskFile, callback) {
+    try {
+        fs.readFile(taskFile.path, 'utf8', function(err, input) {
+            if (err) {
+                logger.error('An error occured while reading a file', taskFile.path, err);
+                return callback(null, taskFile, null, false);
+            }
+            callback(null, taskFile, input, true);
+        });
+    } catch (e) {
+        logger.error('An error occured when reading file', taskFile.path, e);
+        callback(null, taskFile, null, false);
+    }
+}
+
+/**
+ * This function parse a CSV file
+ *
+ * Parameter:
+ * - ioStream: a I/O strem of a file
+ * - callback, a calback function
+ *
+ *
+ **/
+function parseCSV(taskFile, ioStream, callback) {
+    try {
+        parse(ioStream, {
+            delimiter: ';' //,
+                //quote: '~' // Commented TODO: tranform data and remove double quote from data
+        }, function(err, output) {
+            if (err) {
+                logger.error('An error occured when parsing a file', taskFile.path, err);
+                pathUtils.moveFileToErrorFolder(taskFile.path, taskFile.sourceType);
+                return callback(null, taskFile, null, false);
+            }
+            var args = {
+                record: []
+            };
+            var sourceType = taskFile.sourceType;
+
+            output.forEach(function(line, i) {
+                if (i !== 0) {
+                    var record = {};
+                    var dataModel = sourceType.mapping;
+                    for (var k in dataModel) {
+                        record[k] = '<![CDATA[' + line[dataModel[k]] + ']]>';
+                    }
+                    args.record.push(record);
+                }
+            });
+            callback(null, taskFile, args, true);
+        });
+    } catch (e) {
+        logger.error('An error occured when running throught the CSV', e);
+        callback(null, taskFile, null, false);
+    }
+}
+
+function request(taskFile, records, callback) {
+    var sourceType = taskFile.sourceType;
+    var file = taskFile.path;
+    soap.createClient(pathUtils.getFilePath(config.repositories.wsdl, sourceType.url), function(err, client) {
+        if (err) {
+            logger.error('Error when connecting to Odyssey' + file);
+            pathUtils.moveFileToErrorFolder(file, sourceType);
+            return callback(null, taskFile, false);
+        }
+
+        try {
+            logger.info('[ ' + sourceType.folder + ' ] Pushing ' + records.record.length + ' records to Odyssey');
+            client.setSecurity(new soap.BasicAuthSecurity(config.servicenow.credentials.login, config.servicenow.credentials.password));
+            try {
+                client.insertMultiple(records, function(err, result) {
+                    if (err) {
+                        pathUtils.moveFileToErrorFolder(file, sourceType);
+                        logger.error('An error occured during the SOAP call to ServiceNow.', err);
+                        return callback(null, taskFile, false);
+                    }
+                    logger.info('[ ' + sourceType.folder + ' ] Response from Odyssey: ' + parseUtils.getStatusSummary(result));
+                    var processedPath = path.join(config.repositories.data, sourceType.folder, 'processed');
+                    pathUtils.movingFileToFolder(file, processedPath);
+                    callback(null, taskFile, true);
+                });
+            } catch (e) {
+                pathUtils.moveFileToErrorFolder(file, sourceType);
+                logger.error('An error occured during the SOAP call to ServiceNow.', err);
+                return callback(null, taskFile, false);
+            }
+        } catch (e) {
+            logger.error('Error when initialising the connection to Odyssey', file, e);
+            pathUtils.moveFileToErrorFolder(file, sourceType);
+            callback(null, taskFile, false);
+        }
+    });
+}
 
 module.exports = Plugin;
