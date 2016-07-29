@@ -109,6 +109,7 @@ var Plugin = {
                                 /**
                                  * Parse the source data to lowercase and add 'u_' to the property to match with SNOW
                                  **/
+                                var rawSource = sourceData;
                                 sourceData = parseUtils.parseData(sourceData, action);
 
                                 var errFolder = path.join(config.repositories.data, sourceType.folder, 'error');
@@ -150,7 +151,7 @@ var Plugin = {
                                                     /**
                                                      * Build XML file
                                                      **/
-                                                    var responseXML = parseUtils.getResponseXML(result, 'hpsc');
+                                                    var responseXML = parseUtils.getResponseXML(result, rawSource, 'hpsc');
                                                     if (responseXML) {
                                                         try {
                                                             /**
