@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "async": "^2.0.1",
     "chokidar": "^1.6.0",
     "cron": "^1.1.0",
     "csv": "^1.1.0",

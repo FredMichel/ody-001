@@ -25,7 +25,7 @@ var dateFormat = require('dateformat');
 require('shelljs/global');
 var path = require('path');
 var CronJob = require('cron').CronJob;
-var junk = require('junk')
+var junk = require('junk');
 
 var config = require(path.resolve('config', 'config.json'));
 var pathUtils = require(path.resolve('lib', 'pathUtils.js'));
@@ -122,14 +122,12 @@ if (config.plugin_scheduler_mode) {
 
         })
         .on('change', function(path) {
-            console.log('added', path);
+            logger.info('A change has been detected on a file.', path);
         })
         .on('unlink', function(path) {
-            console.log('unlink', path);
+            logger.info('An unlink event has been detected on a file', path);
         });
 }
-
-
 console.log('File monitoring started ...');
 
 function checkExistingFileInInputFolder() {
@@ -180,7 +178,7 @@ function checkExistingFileInInputFolder() {
                     processor.start();
                 });
             } else {
-                logger.info('File not Found in ' + config.repositories.input);
+                logger.debug('File not Found in ' + config.repositories.input);
             }
         });
     } catch (e) {
