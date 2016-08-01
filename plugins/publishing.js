@@ -12,6 +12,7 @@ var chokidar = require('chokidar');
 var dateFormat = require('dateformat');
 var path = require('path');
 var async = require('async');
+var request = require('request');
 
 require('shelljs/global');
 
@@ -63,7 +64,7 @@ var Plugin = {
         var fileLength = files.length;
         for (var singleFile in files) {
             var file = files[singleFile];
-            var verif = this.verifyHeader(path.resolve(config.repositories.input, file.filename));
+            var verif = this.verifyHeader(path.resolve(config.repositories.input, file));
             logger.debug('The file ' + file + ' is to be added at position ' + verif.sourceType.sequenceOrder + ' in the process sequence.');
             isValid = verif.isValid || isValid;
         }
@@ -169,7 +170,7 @@ function addTask(taskFile) {
                     },
                     function(taskFile, records, continueSerie, callback) {
                         if (continueSerie) {
-                            request(taskFile, records, callback);
+                            requestOdyssey(taskFile, records, callback);
                         } else {
                             callback(null, taskFile, false);
                         }
@@ -249,10 +250,19 @@ function parseCSV(taskFile, ioStream, callback) {
     }
 }
 
-function request(taskFile, records, callback) {
+function requestOdyssey(taskFile, records, callback) {
     var sourceType = taskFile.sourceType;
     var file = taskFile.path;
-    soap.createClient(pathUtils.getFilePath(config.repositories.wsdl, sourceType.url), function(err, client) {
+    var request_with_defaults = request.defaults({
+        'proxy': config.proxy.url,
+        'timeout': 5000,
+        'connection': 'keep-alive'
+    });
+    var soap_client_options = {
+        'request': request_with_defaults
+    };
+
+    soap.createClient(pathUtils.getFilePath(config.repositories.wsdl, sourceType.url), /*soap_client_options,*/ function(err, client) {
         if (err) {
             logger.error('Error when connecting to Odyssey' + file);
             pathUtils.moveFileToErrorFolder(file, sourceType);
