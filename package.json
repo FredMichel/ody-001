@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "async": "^2.0.1",
     "chokidar": "^1.6.0",
     "cron": "^1.1.0",
     "csv": "^1.1.0",
@@ -17,6 +18,7 @@
     "junk": "^1.0.3",
     "lodash": "^4.13.1",
     "node-cron": "^1.1.1",
+    "request": "^2.74.0",
     "shelljs": "^0.7.0",
     "soap": "^0.16.0",
     "watch": "^0.19.1",

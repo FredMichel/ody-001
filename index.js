@@ -122,65 +122,52 @@ if (config.plugin_scheduler_mode) {
 
         })
         .on('change', function(path) {
-            console.log('added', path);
+            logger.info('A change has been detected on a file.', path);
         })
         .on('unlink', function(path) {
-            console.log('unlink', path);
+            logger.info('An unlink event has been detected on a file', path);
         });
 }
-
-
 console.log('File monitoring started ...');
 
 function checkExistingFileInInputFolder() {
     //Function to check if an existing file is in the input folder
     try {
-
         fs.readdir(path.resolve(config.repositories.input), function(err, files) {
             if (err) {
                 logger.error('An error occured when reading the input folder ' + config.repositories.input, e);
             }
-            // This has been added to remove DS_staore and other hidden files
+            // This has been added to remove DS_store and other hidden files
             files = files.filter(junk.not);
 
-            var filesWithStats = [];
-            _.each(files, function getFileStats(file) {
-                var fileStats = fs.statSync(path.resolve(config.repositories.input, file));
-
-                filesWithStats.push({
-                    filename: file,
-                    ctime: fileStats.ctime
-                });
-                file = null;
-                _.sortBy(filesWithStats, 'ctime').reverse();
-            });
-            var exitingFiles = filesWithStats.length;
+            var exitingFiles = files.length;
             if (exitingFiles > 0 && !config.plugin_scheduler_mode) {
                 var filesNumber = 0;
-                logger.info(exitingFiles + " files already in the input file =" + filesWithStats);
-                for (var singleFile in filesWithStats) {
-                    var fileObj = filesWithStats[singleFile];
-                    logger.info('The file ' + fileObj.filename + ' is being processed.');
-                    getPlugin(pathUtils.getFilePath(config.repositories.input, fileObj.filename), function(err, processor) {
+                logger.info(exitingFiles + ' files already in the input file', files);
+                for (var singleFile in files) {
+                    var fileName = files[singleFile];
+                    logger.info('The file ' + fileName + ' is being processed.');
+                    getPlugin(pathUtils.getFilePath(config.repositories.input, files.fileName), function(err, processor) {
                         if (err) {
                             // No plugin matches
-                            logger.error('An error occured while trying to get a plugin for the file : ' + filesWithStats[singleFile], err);
+                            logger.error('An error occured while trying to get a plugin for the file : ' + fileName, err);
                             return;
                         }
                         processor.start();
                     });
                 }
             } else if (exitingFiles > 0 && config.plugin_scheduler_mode) {
-                getPlugin(filesWithStats, function(err, processor) {
+                getPlugin(files, function(err, processor) {
                     if (err) {
                         // No plugin matches
-                        logger.error('An issue occured while trying to get a plugin for the following files :' + filesWithStats, err);
+                        logger.error('An issue occured while trying to get a plugin for the following files :' + files, err);
                         return;
                     }
                     processor.start();
                 });
             } else {
-                //logger.info('File not Found in ' + config.repositories.input);
+
+                logger.debug('File not Found in ' + config.repositories.input);
             }
         });
     } catch (e) {
