@@ -19,7 +19,7 @@ require('shelljs/global');
 var config = require(path.resolve('config', 'config.json'));
 var sourceTypeObj = require(path.resolve('lib', 'publishing.headers'));
 var pathUtils = require(path.resolve('lib', 'pathUtils.js'));
-var parseUtils = require(path.resolve('lib', 'parseUtils.js'));
+var webServiceUtils = require(path.resolve('lib', 'webServiceUtils.js'));
 
 var asyncTasks = [];
 
@@ -34,7 +34,7 @@ var logger = new(winston.Logger)({
 });
 
 var Plugin = {
-    filename: '',
+
     loadSequence: [],
     getName: function() {
         return 'Publishing Integration';
@@ -83,6 +83,7 @@ var Plugin = {
                 addTask(item);
                 callback(null, item);
             },
+
             function(err, items) {
                 async.series(asyncTasks, function(err, result) {
                     if (err) {
@@ -93,10 +94,6 @@ var Plugin = {
                     logger.info('End of process for publishing plugin');
                 });
             });
-    },
-
-    setFilename: function(f) {
-        this.filename = f;
     },
 
     /**
@@ -173,7 +170,7 @@ function addTask(taskFile) {
                     },
                     function(taskFile, records, continueSerie, callback) {
                         if (continueSerie) {
-                            requestOdyssey(taskFile, records, callback);
+                            requestPublishingOdyssey(taskFile, records, callback);
                         } else {
                             callback(null, taskFile, false);
                         }
@@ -231,18 +228,19 @@ function parseCSV(taskFile, ioStream, callback) {
                 return callback(null, taskFile, null, false);
             }
             var args = {
-                record: []
+                "records": []
             };
             var sourceType = taskFile.sourceType;
 
+            var dataModel = sourceType.mapping;
             output.forEach(function(line, i) {
                 if (i !== 0) {
                     var record = {};
-                    var dataModel = sourceType.mapping;
-                    for (var k in dataModel) {
-                        record[k] = '<![CDATA[' + line[dataModel[k]] + ']]>';
-                    }
-                    args.record.push(record);
+
+                    _.forEach(dataModel, function(value, key) {
+                        record[key] = line[parseInt(value.toString())];
+                    });
+                    args.records.push(record);
                 }
             });
             callback(null, taskFile, args, true);
@@ -253,54 +251,37 @@ function parseCSV(taskFile, ioStream, callback) {
     }
 }
 
-function requestOdyssey(taskFile, records, callback) {
+function requestPublishingOdyssey(taskFile, records, callback) {
     var sourceType = taskFile.sourceType;
     var file = taskFile.path;
-    var soap_client_options =null;
-    if (config.hasOwnProperty('proxy.url') && config.proxy.url !=''){
-        var request_with_defaults = request.defaults({
-            'proxy': config.proxy.url,
-            'timeout': 5000,
-            'connection': 'keep-alive'
-        });
-        soap_client_options = {
-            'request': request_with_defaults
-        };
-    }
-
-    soap.createClient(pathUtils.getFilePath(config.repositories.wsdl, sourceType.url), /*soap_client_options,*/function(err, client) {
-        if (err) {
-            logger.error('Error when connecting to Odyssey' + file);
-            pathUtils.moveFileToErrorFolder(file, sourceType);
-            return callback(null, taskFile, false);
-        }
-
-        try {
-            logger.info('[ ' + sourceType.folder + ' ] Pushing ' + records.record.length + ' records to Odyssey');
-            client.setSecurity(new soap.BasicAuthSecurity(config.servicenow.credentials.login, config.servicenow.credentials.password));
-            try {
-                client.insertMultiple(records, function(err, result) {
-                    if (err) {
-                        pathUtils.moveFileToErrorFolder(file, sourceType);
-                        logger.error('An error occured during the SOAP call to ServiceNow.', err);
-                        return callback(null, taskFile, false);
-                    }
-                    logger.info('[ ' + sourceType.folder + ' ] Response from Odyssey: ' + parseUtils.getStatusSummary(result));
-                    var processedPath = path.join(config.repositories.data, sourceType.folder, 'processed');
-                    pathUtils.movingFileToFolder(file, processedPath);
-                    callback(null, taskFile, true);
-                });
-            } catch (e) {
+    logger.info('[ ' + sourceType.folder + ' ] Pushing ' + records.records.length + ' records to Odyssey');
+    if (!_.isNil(config.proxy.url) && config.proxy.url !== '') {
+        webServiceUtils.makeRequestCallWithProxy(sourceType, records, function(err, response, body) {
+            logger.debug('response JSON = ' + JSON.stringify(response));
+            if (err) {
                 pathUtils.moveFileToErrorFolder(file, sourceType);
                 logger.error('An error occured during the SOAP call to ServiceNow.', err);
                 return callback(null, taskFile, false);
             }
-        } catch (e) {
-            logger.error('Error when initialising the connection to Odyssey', file, e);
-            pathUtils.moveFileToErrorFolder(file, sourceType);
-            callback(null, taskFile, false);
-        }
-    });
+            logger.info('[ ' + sourceType.folder + ' ] Response from Odyssey: ' + webServiceUtils.getStatusSummary(body));
+            var processedPath = path.join(config.repositories.data, sourceType.folder, 'processed');
+            pathUtils.movingFileToFolder(file, processedPath);
+            callback(null, taskFile, true);
+        });
+    } else {
+        webServiceUtils.makeRequestCallNoProxy(sourceType, records, function(err, response, body) {
+            logger.debug('response JSON = ' + JSON.stringify(response));
+            if (err) {
+                pathUtils.moveFileToErrorFolder(file, sourceType);
+                logger.error('An error occured during the SOAP call to ServiceNow.', err);
+                return callback(null, taskFile, false);
+            }
+            logger.info('[ ' + sourceType.folder + ' ] Response from Odyssey: ' + webServiceUtils.getStatusSummary(body));
+            var processedPath = path.join(config.repositories.data, sourceType.folder, 'processed');
+            pathUtils.movingFileToFolder(file, processedPath);
+            callback(null, taskFile, true);
+        });
+    }
 }
 
 module.exports = Plugin;
