@@ -78,7 +78,7 @@ if (config.plugin_scheduler_mode) {
             cronTime: config.plugin_schedule_frequency,
             // Function to run when the cronTime is met
             onTick: function() {
-                console.log ('Check');
+                console.log('Check');
                 checkExistingFileInInputFolder();
             },
             // Function that runs when the onTick function ends
@@ -187,10 +187,8 @@ function getPlugin(f, callback) {
         }
     }
     if (isValid && !config.plugin_scheduler_mode) {
-        plugins[i].setFilename(f);
+        //plugins[i].setFilename(f);
         //plugins[i].setLogger(logger);
-        callback(null, plugins[i]);
-    } else if (isValid && config.plugin_scheduler_mode) {
         callback(null, plugins[i]);
     } else {
         callback(true);
